@@ -42,6 +42,19 @@ cp .build/release/DuoDisplay "$APP/Contents/MacOS/DuoDisplay"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 plutil -replace CFBundleIdentifier -string "$BUNDLE_ID" "$APP/Contents/Info.plist"
 
+# App icon (Liquid Glass, Resources/AppIcon.icon – editable with Icon Composer). Compiled with
+# Xcode's actool when available, otherwise the precompiled copy in Resources/AppIconCompiled is used.
+XCODE_DEV="${XCODE_DEV:-/Applications/Xcode.app/Contents/Developer}"
+ICON_TMP="$(mktemp -d)"
+if [[ -d "$XCODE_DEV" ]] && DEVELOPER_DIR="$XCODE_DEV" xcrun actool Resources/AppIcon.icon \
+        --compile "$ICON_TMP" --app-icon AppIcon --platform macosx --target-device mac \
+        --minimum-deployment-target 14.0 --output-partial-info-plist "$ICON_TMP/partial.plist" >/dev/null 2>&1 \
+        && [[ -f "$ICON_TMP/Assets.car" ]]; then
+    cp "$ICON_TMP/Assets.car" "$ICON_TMP/AppIcon.icns" Resources/AppIconCompiled/
+fi
+rm -rf "$ICON_TMP"
+cp Resources/AppIconCompiled/Assets.car Resources/AppIconCompiled/AppIcon.icns "$APP/Contents/Resources/"
+
 KEYCHAIN="$HOME/Library/Keychains/duodisplay-signing.keychain-db"
 KEYCHAIN_PW_FILE="$HOME/Library/Application Support/DuoDisplay/signing-keychain-password"
 LOCAL_IDENTITY="DuoDisplay Local Signing"

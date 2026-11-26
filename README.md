@@ -9,7 +9,7 @@ Beispiel: MacBook links, iMac rechts, Magic Keyboard und Magic Trackpad am iMac.
 | **Zweiter Bildschirm** | einen zusätzlichen Bildschirm des MacBook | das MacBook, inklusive Gesten. Der Zeiger wandert nach links auf den MacBook-Bildschirm |
 | **Normal nutzen** | seinen eigenen Schreibtisch | den iMac. Schiebst du den Zeiger über den linken Rand, steuern sie das MacBook, bis er über dessen rechten Rand zurückkommt |
 
-Dieselbe App läuft auf beiden Macs. Sie lebt in der Menüleiste und bleibt dauerhaft gekoppelt.
+Dieselbe App läuft auf beiden Macs. Sie lebt in der Menüleiste und bleibt dauerhaft gekoppelt. Im Dock erscheint sie nur, solange das DuoDisplay-Fenster (Einstellungen, Modus) offen ist. Geöffnet wird es über das Menüleisten-Symbol oder durch erneutes Öffnen der App im Finder. Das App-Icon liegt in `Resources/AppIcon.icon` und lässt sich mit Icon Composer (in Xcode enthalten) bearbeiten. `build.sh` übersetzt es mit `actool` aus Xcode. Ohne Xcode wird die fertige Fassung aus `Resources/AppIconCompiled` verwendet.
 
 **Ton, Kamera und Mikrofon:**
 

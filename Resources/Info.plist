@@ -2,13 +2,19 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleName</key>
-	<string>DuoDisplay</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>de</string>
 	<key>CFBundleDisplayName</key>
 	<string>DuoDisplay</string>
+	<key>CFBundleExecutable</key>
+	<string>DuoDisplay</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>local.duodisplay.DuoDisplay</string>
-	<key>CFBundleExecutable</key>
+	<key>CFBundleName</key>
 	<string>DuoDisplay</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
@@ -16,27 +22,27 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
-	<key>CFBundleDevelopmentRegion</key>
-	<string>de</string>
-	<key>LSMinimumSystemVersion</key>
-	<string>14.0</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
-	<key>NSHighResolutionCapable</key>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
 	<true/>
-	<key>NSSupportsAutomaticGraphicsSwitching</key>
-	<true/>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>DuoDisplay verbindet sich über Thunderbolt mit deinem anderen Mac, um ihn als Bildschirm zu verwenden.</string>
-	<key>NSCameraUsageDescription</key>
-	<string>iMac: DuoDisplay schickt das Kamerabild an das MacBook, wenn dort eine App die „iMac-Kamera“ nutzt. MacBook: DuoDisplay gibt das Bild an die virtuelle iMac-Kamera weiter.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>DuoDisplay schickt den Ton des iMac-Mikrofons an das MacBook, wenn dort eine App das „iMac-Mikrofon“ nutzt.</string>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>Im Bildschirm-Modus spielt DuoDisplay den Ton des MacBook über die Lautsprecher des iMac ab.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_duodisplay._tcp</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>iMac: DuoDisplay schickt das Kamerabild an das MacBook, wenn dort eine App die „iMac-Kamera“ nutzt. MacBook: DuoDisplay gibt das Bild an die virtuelle iMac-Kamera weiter.</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>DuoDisplay verbindet sich über Thunderbolt mit deinem anderen Mac, um ihn als Bildschirm zu verwenden.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>DuoDisplay schickt den Ton des iMac-Mikrofons an das MacBook, wenn dort eine App das „iMac-Mikrofon“ nutzt.</string>
+	<key>NSSupportsAutomaticGraphicsSwitching</key>
+	<true/>
 </dict>
 </plist>

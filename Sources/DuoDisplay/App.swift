@@ -5,26 +5,54 @@ struct DuoDisplayApp: App {
     @ObservedObject private var model = AppModel.shared
 
     var body: some Scene {
+        // The menu bar item comes first, so SwiftUI does not open the window at launch:
+        // the app starts quietly in the menu bar (AppDelegate opens the window on first use).
+        MenuBarExtra {
+            MenuContent(model: model)
+        } label: {
+            MenuBarLabel(model: model)
+        }
+
         Window("DuoDisplay", id: "main") {
             RootView(model: model)
         }
         .windowResizability(.contentMinSize)
+    }
+}
 
-        MenuBarExtra {
-            MenuContent(model: model)
-        } label: {
-            Image(systemName: model.menuBarSymbol)
-        }
+/// Menu bar icon. It exists for the app's whole lifetime, so it also hands the
+/// SwiftUI "open window" action to DockPresence (Dock click, second launch from Finder).
+struct MenuBarLabel: View {
+    @ObservedObject var model: AppModel
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Image(systemName: model.menuBarSymbol)
+            .onAppear { DockPresence.shared.openWindowAction = { openWindow(id: "main") } }
     }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppModel.shared.launch()
+        DockPresence.shared.start()
+        DispatchQueue.main.async {
+            if AppModel.shared.role.isEmpty {
+                DockPresence.shared.showMainWindow()   // first launch: choose the mode
+            } else {
+                DockPresence.shared.closeMainWindowAtLaunch()   // e.g. restored by macOS
+            }
+        }
     }
 
     /// Keeps running in the menu bar so the pairing and ⌃⌥⌘D keep working.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    /// Opened again from Finder/Launchpad/Spotlight while running: show the window.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        DockPresence.shared.showMainWindow()
+        return false
+    }
 }
 
 /// App-wide state: the chosen role and its long-lived session (independent of any window).
@@ -122,7 +150,6 @@ final class AppModel: ObservableObject {
 
 struct MenuContent: View {
     @ObservedObject var model: AppModel
-    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         Text(model.statusText)
@@ -134,10 +161,7 @@ struct MenuContent: View {
             Button("Bild-in-Bild des MacBook ein/aus  (\(GlobalHotKey.pipLabel))") { model.togglePiP() }
         }
         Divider()
-        Button("DuoDisplay-Fenster öffnen") {
-            openWindow(id: "main")
-            NSApp.activate(ignoringOtherApps: true)
-        }
+        Button("DuoDisplay-Fenster öffnen") { DockPresence.shared.showMainWindow() }
         Button("Beenden") { NSApp.terminate(nil) }
     }
 }
