@@ -29,4 +29,9 @@ if CommandLine.arguments.contains("--rendertest") {
     if CommandLine.arguments.contains("--window") { SelfTest.runRenderWindowed() }
     exit(SelfTest.runRender() ? 0 : 1)
 }
+if let i = CommandLine.arguments.firstIndex(of: "--uisnapshot") {
+    let args = CommandLine.arguments
+    let dir = args.indices.contains(i + 1) && !args[i + 1].hasPrefix("--") ? args[i + 1] : "build/ui-snapshots"
+    UISnapshot.run(output: dir, onscreen: args.contains("--onscreen"))
+}
 DuoDisplayApp.main()

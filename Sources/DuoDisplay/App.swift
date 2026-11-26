@@ -134,16 +134,9 @@ final class AppModel: ObservableObject {
 
     var statusText: String {
         switch role {
-        case "sender":
-            guard let name = sender.connectedName else { return "Nicht verbunden" }
-            if !sender.isConnected { return "Verbinde mit \(name)…" }
-            return sender.mode == .display ? "\(name) ist zweiter Bildschirm" : "\(name) wird normal genutzt"
-        case "receiver":
-            guard let peer = receiver.peerName else { return "Warte auf das MacBook…" }
-            if receiver.edgeActive { return "Maus und Tastatur steuern \(peer)" }
-            return receiver.mode == .display ? "Bildschirm von \(peer)" : "Normal – gekoppelt mit \(peer)"
-        default:
-            return "Kein Modus gewählt"
+        case "sender": return sender.statusText
+        case "receiver": return receiver.statusText
+        default: return "Kein Modus gewählt"
         }
     }
 }
@@ -152,17 +145,26 @@ struct MenuContent: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        Text(model.statusText)
-        if model.isConnected {
-            Button(model.currentMode == .display ? "Normal nutzen  (\(GlobalHotKey.label))"
-                                                 : "Als zweiten Bildschirm nutzen  (\(GlobalHotKey.label))") {
-                model.toggle()
+        Section(model.statusText) {
+            if model.isConnected {
+                Button {
+                    model.toggle()
+                } label: {
+                    Label((model.currentMode == .display ? "Normal nutzen" : "Als zweiten Bildschirm nutzen")
+                              + "  (\(GlobalHotKey.label))",
+                          systemImage: model.currentMode == .display ? "display" : "display.2")
+                }
+                Button {
+                    model.togglePiP()
+                } label: {
+                    Label("Bild-in-Bild ein/aus  (\(GlobalHotKey.pipLabel))", systemImage: "pip")
+                }
             }
-            Button("Bild-in-Bild des MacBook ein/aus  (\(GlobalHotKey.pipLabel))") { model.togglePiP() }
         }
         Divider()
-        Button("DuoDisplay-Fenster öffnen") { DockPresence.shared.showMainWindow() }
-        Button("Beenden") { NSApp.terminate(nil) }
+        Button("DuoDisplay-Fenster öffnen…") { DockPresence.shared.showMainWindow() }
+        Divider()
+        Button("DuoDisplay beenden") { NSApp.terminate(nil) }
     }
 }
 
@@ -170,53 +172,140 @@ struct RootView: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        switch model.role {
-        case "sender":
-            SenderView(session: model.sender, onBack: { model.role = "" })
-        case "receiver":
-            ReceiverView(service: model.receiver, onBack: { model.role = "" })
-        default:
-            ModePicker(mode: $model.role)
+        Group {
+            switch model.role {
+            case "sender":
+                SenderView(session: model.sender, onBack: { model.role = "" })
+            case "receiver":
+                ReceiverView(service: model.receiver, onBack: { model.role = "" })
+            default:
+                ModePicker(mode: $model.role)
+            }
         }
+        .transition(.opacity)
+        .designAnimation(value: model.role)
     }
 }
 
+/// First launch: which Mac is this?
 struct ModePicker: View {
     @Binding var mode: String
 
     var body: some View {
-        VStack(spacing: 22) {
-            Text("DuoDisplay").font(.largeTitle.bold())
-            Text("Ein Mac als zweiter Bildschirm des anderen – per Thunderbolt, mit minimaler Latenz.\nUmschalten jederzeit mit \(GlobalHotKey.label).")
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-            HStack(spacing: 18) {
-                card(icon: "macbook.and.display",
-                     title: "Bildschirm erweitern",
-                     text: "Für das MacBook: Es bekommt einen zusätzlichen Bildschirm, der auf dem anderen Mac angezeigt wird.",
-                     tag: "sender")
-                card(icon: "display",
-                     title: "Als Bildschirm verwenden",
-                     text: "Für den iMac: Er zeigt den Bildschirm des MacBook an – seine Tastatur und sein Trackpad steuern dann das MacBook.",
-                     tag: "receiver")
+        VStack(spacing: 28) {
+            VStack(spacing: 10) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 84, height: 84)
+                    .accessibilityHidden(true)
+                Text("Willkommen bei DuoDisplay")
+                    .font(.largeTitle.weight(.bold))
+                    .tracking(-0.4)
+                Text("Ein Mac als zweiter Bildschirm des anderen – per Thunderbolt, mit minimaler Latenz.")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
+
+            VStack(spacing: 14) {
+                Text("Wofür soll dieser Mac genutzt werden?")
+                    .font(.headline)
+                HStack(spacing: 16) {
+                    ModeCard(symbol: "macbook", color: .blue,
+                             device: "Auf dem MacBook",
+                             title: "Bildschirm erweitern",
+                             text: "Das MacBook bekommt einen zusätzlichen Bildschirm, der auf dem anderen Mac angezeigt wird.") {
+                        mode = "sender"
+                    }
+                    ModeCard(symbol: "display", color: .indigo,
+                             device: "Auf dem iMac",
+                             title: "Als Bildschirm verwenden",
+                             text: "Der iMac zeigt den Bildschirm des MacBook – seine Tastatur und sein Trackpad steuern dann das MacBook.") {
+                        mode = "receiver"
+                    }
+                }
+            }
+
+            ShortcutHint(text: "Später jederzeit umschalten mit", keys: GlobalHotKey.label)
         }
-        .padding(36)
-        .frame(minWidth: 640, minHeight: 400)
+        .padding(40)
+        .frame(minWidth: 660, minHeight: 520)
+    }
+}
+
+/// A large, clickable choice card. Highlights on hover, presses in on mouse-down.
+private struct ModeCard: View {
+    let symbol: String
+    let color: Color
+    let device: String
+    let title: String
+    let text: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 12) {
+                SymbolTile(systemName: symbol, color: color, size: 56)
+                VStack(spacing: 4) {
+                    Text(device.uppercased())
+                        .font(.caption.weight(.semibold))
+                        .tracking(0.6)
+                        .foregroundStyle(color)
+                    Text(title)
+                        .font(.title3.weight(.semibold))
+                }
+                Text(text)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 24)
+            .frame(width: 270, height: 216)
+        }
+        .buttonStyle(CardButtonStyle(tint: color))
+        .accessibilityHint(device)
+    }
+}
+
+/// Hover flag for the card style (a class: `@State` needs the SwiftUI macro plugin, which the
+/// Command Line Tools don't ship).
+private final class HoverState: ObservableObject {
+    @Published var isHovering = false
+}
+
+private struct CardButtonStyle: ButtonStyle {
+    let tint: Color
+
+    func makeBody(configuration: Configuration) -> some View {
+        CardBody(configuration: configuration, tint: tint)
     }
 
-    private func card(icon: String, title: String, text: String, tag: String) -> some View {
-        Button { mode = tag } label: {
-            VStack(spacing: 12) {
-                Image(systemName: icon).font(.system(size: 44))
-                Text(title).font(.headline)
-                Text(text).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
-            }
-            .padding(22)
-            .frame(width: 260, height: 230)
-            .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.12)))
-            .contentShape(Rectangle())
+    private struct CardBody: View {
+        let configuration: Configuration
+        let tint: Color
+        @StateObject private var hover = HoverState()
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+        private var hovering: Bool { hover.isHovering }
+
+        var body: some View {
+            // Concentric with the window's large Liquid Glass corners.
+            let shape = RoundedRectangle(cornerRadius: 24, style: .continuous)
+            configuration.label
+                .contentShape(shape)
+                .glassSurface(in: shape, interactive: true)
+                .overlay(
+                    shape.strokeBorder(tint.opacity(hovering ? 0.9 : 0), lineWidth: 1.5)
+                )
+                .shadow(color: .black.opacity(hovering ? 0.12 : 0), radius: 14, y: 5)
+                .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
+                .animation(reduceMotion ? nil : Design.press(configuration.isPressed), value: configuration.isPressed)
+                .animation(reduceMotion ? nil : Design.spring, value: hovering)
+                .onHover { hover.isHovering = $0 }
         }
-        .buttonStyle(.plain)
     }
 }

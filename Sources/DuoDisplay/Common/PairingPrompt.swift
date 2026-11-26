@@ -43,8 +43,13 @@ final class PairingPrompt: NSObject, ObservableObject, NSWindowDelegate {
 
         let hosting = NSHostingView(rootView: PairingPromptView(prompt: self))
         let panel = NSPanel(contentRect: CGRect(origin: .zero, size: hosting.fittingSize),
-                            styleMask: [.titled, .closable], backing: .buffered, defer: false)
+                            styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
         panel.title = "DuoDisplay – Macs koppeln"
+        // Modern dialog look: content runs under a transparent title bar, no separator line.
+        panel.titleVisibility = .hidden
+        panel.titlebarAppearsTransparent = true
+        panel.titlebarSeparatorStyle = .none
+        panel.isMovableByWindowBackground = true
         panel.isReleasedWhenClosed = false
         panel.level = .floating
         panel.hidesOnDeactivate = false
@@ -89,39 +94,87 @@ final class PairingPrompt: NSObject, ObservableObject, NSWindowDelegate {
     }
 }
 
-private struct PairingPromptView: View {
+struct PairingPromptView: View {
     @ObservedObject var prompt: PairingPrompt
 
     var body: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "lock.shield").font(.system(size: 34)).foregroundStyle(.tint)
-            Text("Mit „\(prompt.peerName)“ koppeln?").font(.headline)
-            Text(prompt.code)
-                .font(.system(size: 40, weight: .semibold, design: .monospaced))
-                .textSelection(.disabled)
+        VStack(spacing: 18) {
+            VStack(spacing: 10) {
+                SymbolTile(systemName: "lock.shield.fill", color: .blue, size: 52)
+                Text("Mit „\(prompt.peerName)“ koppeln?")
+                    .font(.title3.weight(.semibold))
+                    .multilineTextAlignment(.center)
+            }
+
+            CodeDigits(code: prompt.code)
+
             Text("Nur bestätigen, wenn der andere Mac genau diesen Code zeigt und du dort gerade die Verbindung gestartet hast. Danach auf beiden Macs „Koppeln“ klicken.")
                 .font(.callout).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
+
             if let note = prompt.note {
-                Text(note).font(.caption).foregroundStyle(.orange)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if prompt.waiting {
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    Text("Warte auf den anderen Mac…").foregroundStyle(.secondary)
+                Label {
+                    Text(note).fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
                 }
-            } else {
-                HStack {
-                    Button("Abbrechen", role: .cancel) { prompt.cancel() }
+                .font(.callout)
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.orange.opacity(0.12)))
+            }
+
+            Group {
+                if prompt.waiting {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Warte auf den anderen Mac…").foregroundStyle(.secondary)
+                    }
+                    .frame(height: 28)
+                } else {
+                    // "Koppeln" deliberately has no Return shortcut: pairing should be a conscious click.
+                    HStack(spacing: 10) {
+                        Button(role: .cancel) { prompt.cancel() } label: {
+                            Text("Abbrechen").frame(maxWidth: .infinity)
+                        }
                         .keyboardShortcut(.cancelAction)
-                    Button("Koppeln") { prompt.confirm() }
+                        Button { prompt.confirm() } label: {
+                            Text("Koppeln").frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    .controlSize(.large)
                 }
             }
         }
-        .padding(24)
-        .frame(width: 380)
+        .padding(28)
+        .frame(width: 400)
+    }
+}
+
+/// The 6-digit code as two groups of three key-like boxes, easy to compare at a glance.
+private struct CodeDigits: View {
+    let code: String
+
+    var body: some View {
+        let digits = Array(code)
+        HStack(spacing: 14) {
+            group(digits.prefix(3))
+            group(digits.dropFirst(3))
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Code \(digits.map(String.init).joined(separator: " "))")
+    }
+
+    private func group(_ slice: ArraySlice<Character>) -> some View {
+        HStack(spacing: 6) {
+            ForEach(Array(slice.enumerated()), id: \.offset) { _, digit in
+                Text(String(digit))
+                    .font(.system(size: 30, weight: .semibold, design: .rounded).monospacedDigit())
+                    .frame(width: 42, height: 54)
+                    .glassSurface(in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+        }
     }
 }

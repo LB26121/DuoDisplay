@@ -1,207 +1,177 @@
 import SwiftUI
 import AVFoundation
 
+extension ReceiverService {
+    /// One-line status for the window header and the menu bar menu.
+    var statusText: String {
+        guard let peer = peerName else { return "Warte auf das MacBook…" }
+        if edgeActive { return "Maus und Tastatur steuern \(peer)" }
+        return mode == .display ? "Zeigt den Bildschirm von \(peer)" : "Normal – gekoppelt mit \(peer)"
+    }
+}
+
 struct ReceiverView: View {
     @ObservedObject var service: ReceiverService
     let onBack: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Button(action: onBack) { Label("Zurück", systemImage: "chevron.left") }
-                    .buttonStyle(.borderless)
-                Spacer()
+        VStack(spacing: 0) {
+            PageHeader(symbol: "display",
+                       title: "„\(service.name)“ als Bildschirm",
+                       status: service.isConnected ? service.statusText : service.status,
+                       tone: service.isConnected ? .ok : (service.status.hasPrefix("Netzwerkfehler") ? .error : .working))
+                .padding(.horizontal, 28)
+                .padding(.top, 18)
+
+            Form {
+                modeSection
+                RequirementsSection(
+                    links: service.thunderboltLinks,
+                    pairedName: service.pairedName,
+                    unpairedText: "Auf dem MacBook „Verbinden“ klicken. Dann zeigen beide Macs denselben 6-stelligen Code – auf beiden „Koppeln“ klicken.",
+                    accessibilityGranted: service.accessibilityGranted,
+                    accessibilityText: "Nötig, damit Tastatur und Trackpad dieses Macs das MacBook steuern – im Bildschirm-Modus und über den Bildschirmrand.",
+                    onForget: { service.forgetPairing() })
+                displaySection
+                ReceiverMediaSection(media: service.media)
+                RoleSection(symbol: "display", title: "Als Bildschirm verwenden",
+                            detail: "Dieser Mac zeigt den Bildschirm des MacBook.",
+                            onChange: onBack)
             }
-            HStack(spacing: 12) {
-                Image(systemName: "display").font(.system(size: 34))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("„\(service.name)“ als Bildschirm").font(.title2.bold())
-                    Text(service.status).foregroundStyle(.secondary)
+            .formStyle(.grouped)
+        }
+        .designAnimation(value: service.isConnected)
+        .designAnimation(value: service.mode)
+        .designAnimation(value: service.edgeActive)
+        .designAnimation(value: service.pipShowing)
+        .frame(minWidth: 580, minHeight: 640)
+    }
+
+    private var modeSection: some View {
+        Section {
+            if service.isConnected {
+                Picker("Modus", selection: Binding(
+                    get: { service.mode },
+                    set: { if $0 != service.mode { service.requestToggle() } })) {
+                    Text("Bildschirm des MacBook").tag(LinkMode.display)
+                    Text("Normal nutzen").tag(LinkMode.local)
                 }
-            }
+                .pickerStyle(.segmented)
 
-            ThunderboltStatusView(links: service.thunderboltLinks)
-            PairingStatusView(pairedName: service.pairedName,
-                              unpairedText: "Auf dem MacBook „Verbinden“ klicken. Dann zeigen beide Macs denselben 6-stelligen Code – auf beiden „Koppeln“ klicken.",
-                              onForget: { service.forgetPairing() })
-            AccessibilityStatusView(granted: service.accessibilityGranted,
-                                    text: "Nötig, damit Tastatur und Trackpad dieses Macs das MacBook steuern – im Bildschirm-Modus und über den Bildschirmrand.")
-
-            GroupBox {
-                VStack(alignment: .leading, spacing: 10) {
-                    if service.isConnected {
-                        Picker("", selection: Binding(
-                            get: { service.mode },
-                            set: { if $0 != service.mode { service.requestToggle() } })) {
-                            Text("Als Bildschirm des MacBook").tag(LinkMode.display)
-                            Text("Normal nutzen").tag(LinkMode.local)
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                        Text("Umschalten jederzeit mit \(GlobalHotKey.label) – auf beiden Macs.")
-                            .font(.callout)
-                        if service.mode == .local {
-                            edgeLine
-                            Label(service.pipShowing
-                                  ? "Bild-in-Bild des MacBook ist offen. Zeiger ins Bild schieben (von jeder Seite) → Maus und Tastatur steuern das MacBook; über einen Rand des MacBook-Bildschirms wieder hinaus. Schließen: \(GlobalHotKey.pipLabel)."
-                                  : "\(GlobalHotKey.pipLabel) zeigt den Bildschirm des MacBook als Bild-in-Bild.",
-                                  systemImage: "pip")
-                                .font(.caption).foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        if let problem = service.pipProblem {
-                            Label(problem, systemImage: "exclamationmark.triangle.fill")
-                                .font(.caption).foregroundStyle(.orange)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        if !service.inputForwarding {
-                            Text("Ohne Bedienungshilfen-Freigabe wird der Bildschirm angezeigt, Eingaben werden aber nicht weitergeleitet.")
-                                .font(.caption).foregroundStyle(.orange)
-                        }
-                        Toggle("Bild mit V-Sync zeigen (keine Risslinien beim Scrollen)", isOn: $service.vsync)
-                        Text(service.vsync
-                             ? "Jedes Bild wird erst zum nächsten Bildaufbau des iMac gezeigt – ganz, aber im Schnitt ~8 ms später."
-                             : "Bilder erscheinen sofort – minimal schneller, aber bei schnellen Bewegungen mit waagrechten Risslinien.")
-                            .font(.caption).foregroundStyle(.secondary)
+                if service.mode == .local {
+                    edgeRow
+                    pipRow
+                }
+                if let problem = service.pipProblem {
+                    NoticeRow(text: problem)
+                }
+                if !service.inputForwarding {
+                    NoticeRow(text: "Ohne Bedienungshilfen-Freigabe wird der Bildschirm angezeigt, Eingaben werden aber nicht weitergeleitet.")
+                }
+            } else {
+                HStack(alignment: .top, spacing: 10) {
+                    ProgressView().controlSize(.small)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Warte auf das MacBook")
+                        Text("Dort DuoDisplay öffnen → „Bildschirm erweitern“ → „Verbinden“. Danach verbindet es sich automatisch.")
+                            .font(.callout).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
-                        if !service.statsLine.isEmpty && service.mode == .display {
-                            Text(service.statsLine).font(.system(.caption, design: .monospaced))
-                        }
-                    } else {
-                        HStack(spacing: 8) {
-                            ProgressView().controlSize(.small)
-                            Text("Warte auf das MacBook. Dort DuoDisplay öffnen → „Bildschirm erweitern“ → Verbinden. Danach verbindet es sich automatisch.")
-                                .foregroundStyle(.secondary)
-                        }
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(4)
-            } label: { Text("Modus") }
-
-            ReceiverMediaBox(media: service.media)
-
-            Spacer(minLength: 0)
+                .padding(.vertical, 2)
+            }
+        } header: {
+            Text("Modus")
+        } footer: {
+            if service.isConnected {
+                ShortcutHint(text: "Umschalten jederzeit mit", keys: GlobalHotKey.label, trailing: "– auf beiden Macs.")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
-        .padding(20)
-        .frame(minWidth: 540, minHeight: 620)
     }
 
     @ViewBuilder
-    private var edgeLine: some View {
+    private var edgeRow: some View {
         if service.edgeActive {
-            Label("Maus und Tastatur steuern gerade das MacBook. Zurück: Zeiger über den Rand des MacBook schieben oder \(GlobalHotKey.label).",
-                  systemImage: "cursorarrow.motionlines")
-                .font(.caption).foregroundStyle(.green)
-                .fixedSize(horizontal: false, vertical: true)
+            StatusRow(symbol: "cursorarrow.motionlines", color: .green,
+                      title: "Maus und Tastatur steuern gerade das MacBook",
+                      detail: "Zurück: Zeiger über den Rand des MacBook schieben oder \(GlobalHotKey.label).")
         } else if let edge = service.peerEdge {
-            Label("Zeiger am \(edge == .left ? "linken" : "rechten") Rand weiterschieben → Maus und Tastatur steuern das MacBook.",
-                  systemImage: edge == .left ? "arrow.left.to.line" : "arrow.right.to.line")
-                .font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            StatusRow(symbol: edge == .left ? "arrow.left.to.line" : "arrow.right.to.line", color: .blue,
+                      title: "Wechsel über den \(edge == .left ? "linken" : "rechten") Rand",
+                      detail: "Zeiger dort weiterschieben – dann steuern Maus und Tastatur das MacBook.")
         } else {
-            Text("Wechsel per Bildschirmrand ist auf dem MacBook ausgeschaltet (oder dort fehlt die Bedienungshilfen-Freigabe).")
-                .font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            StatusRow(symbol: "rectangle.portrait.slash", color: .gray,
+                      title: "Wechsel über den Rand ist aus",
+                      detail: "Auf dem MacBook ausgeschaltet – oder dort fehlt die Bedienungshilfen-Freigabe.")
         }
     }
-}
 
-/// Which Mac this one is paired with (only that one can connect).
-struct PairingStatusView: View {
-    let pairedName: String?
-    let unpairedText: String
-    let onForget: () -> Void
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: pairedName == nil ? "lock.open" : "lock.fill")
-                .foregroundStyle(pairedName == nil ? .orange : .green)
-            VStack(alignment: .leading, spacing: 4) {
-                if let pairedName {
-                    Text("Gekoppelt mit „\(pairedName)“").font(.subheadline.bold())
-                    Text("Nur dieser Mac kann sich verbinden. Tastatur- und Mausdaten gehen verschlüsselt über die Leitung.")
-                        .font(.caption).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Button("Kopplung aufheben", role: .destructive, action: onForget).controlSize(.small)
-                } else {
-                    Text("Noch nicht gekoppelt").font(.subheadline.bold())
-                    Text(unpairedText).font(.caption).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
+    private var pipRow: some View {
+        StatusRow(symbol: "pip.fill", color: service.pipShowing ? .green : .indigo,
+                  title: service.pipShowing ? "Bild-in-Bild ist offen" : "Bild-in-Bild",
+                  detail: service.pipShowing
+                      ? "Zeiger ins Bild schieben (von jeder Seite) – Maus und Tastatur steuern das MacBook; über einen Rand des MacBook-Bildschirms wieder hinaus. Schließen mit \(GlobalHotKey.pipLabel)."
+                      : "\(GlobalHotKey.pipLabel) zeigt den Bildschirm des MacBook in einem schwebenden Fenster.") {
+            Button(service.pipShowing ? "Schließen" : "Anzeigen") { service.togglePiP() }
         }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.1)))
     }
-}
 
-struct AccessibilityStatusView: View {
-    let granted: Bool
-    let text: String
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: granted ? "keyboard.fill" : "keyboard.badge.exclamationmark")
-                .foregroundStyle(granted ? .green : .orange)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(granted ? "Bedienungshilfen: erlaubt" : "Bedienungshilfen: nicht erlaubt").font(.subheadline.bold())
-                Text(text).font(.caption).foregroundStyle(.secondary)
-                if !granted {
-                    HStack {
-                        Button("Erlauben…") { Permissions.requestAccessibility() }
-                        Button("Einstellungen öffnen") { Permissions.openAccessibilitySettings() }
-                    }
-                    .controlSize(.small)
-                }
+    private var displaySection: some View {
+        Section("Darstellung") {
+            Toggle(isOn: $service.vsync) {
+                Text("Mit V-Sync anzeigen")
+                Text(service.vsync
+                     ? "Keine Risslinien beim Scrollen: Jedes Bild erscheint zum nächsten Bildaufbau des iMac – ganz, aber im Schnitt ~8 ms später."
+                     : "Bilder erscheinen sofort – minimal schneller, aber bei schnellen Bewegungen mit waagrechten Risslinien.")
+            }
+            if service.isConnected && service.mode == .display && !service.statsLine.isEmpty {
+                LabeledContent("Messwerte") { StatsText(text: service.statsLine) }
             }
         }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.1)))
     }
 }
 
 /// Camera + microphone of this Mac for the MacBook.
-struct ReceiverMediaBox: View {
+struct ReceiverMediaSection: View {
     @ObservedObject var media: MediaProvider
 
     var body: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 8) {
-                Toggle("Kamera und Mikrofon dem MacBook bereitstellen", isOn: $media.enabled)
-                Text("Auf dem MacBook erscheinen sie als „iMac-Kamera (DuoDisplay)“ und „iMac-Mikrofon (DuoDisplay)“. Sie laufen nur, solange eine App dort sie benutzt. Der Ton des MacBook kommt im Bildschirm-Modus aus den Lautsprechern dieses Macs.")
-                    .font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 16) {
-                    permission(.video, label: "Kamera", active: media.cameraActive)
-                    permission(.audio, label: "Mikrofon", active: media.micActive)
-                }
-                .id(media.permissionTick)
-                if let problem = media.problem {
-                    Label(problem, systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption).foregroundStyle(.orange)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+        Section {
+            Toggle(isOn: $media.enabled) {
+                Text("Kamera und Mikrofon bereitstellen")
+                Text("Auf dem MacBook erscheinen sie als „iMac-Kamera (DuoDisplay)“ und „iMac-Mikrofon (DuoDisplay)“ und laufen nur, solange eine App dort sie benutzt.")
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(4)
-        } label: { Text("Kamera & Mikrofon für das MacBook") }
+            Group {
+                permissionRow(.video, label: "Kamera", symbol: "web.camera.fill", activeColor: .green, active: media.cameraActive)
+                permissionRow(.audio, label: "Mikrofon", symbol: "mic.fill", activeColor: .orange, active: media.micActive)
+            }
+            .id(media.permissionTick)
+            if let problem = media.problem {
+                NoticeRow(text: problem)
+            }
+        } header: {
+            Text("Kamera & Mikrofon für das MacBook")
+        } footer: {
+            Text("Der Ton des MacBook kommt im Bildschirm-Modus aus den Lautsprechern dieses Macs.")
+                .footerText()
+        }
     }
 
+    /// Colors follow the macOS privacy indicators: camera green, microphone orange while sending.
     @ViewBuilder
-    private func permission(_ type: AVMediaType, label: String, active: Bool) -> some View {
+    private func permissionRow(_ type: AVMediaType, label: String, symbol: String, activeColor: Color, active: Bool) -> some View {
         let status = MediaPermissions.status(type)
-        HStack(spacing: 6) {
-            Image(systemName: active ? "record.circle" : (status == .authorized ? "checkmark.circle.fill" : "exclamationmark.circle"))
-                .foregroundStyle(active ? .red : (status == .authorized ? .green : .orange))
-            Text(active ? "\(label): sendet" : (status == .authorized ? "\(label): erlaubt" : "\(label): nicht erlaubt"))
-                .font(.caption)
+        let allowed = status == .authorized
+        StatusRow(symbol: symbol,
+                  color: active ? activeColor : (allowed ? .blue : .gray),
+                  title: label,
+                  detail: active ? "Sendet gerade ans MacBook" : (allowed ? "Zugriff erlaubt" : "Zugriff nicht erlaubt")) {
             if status == .notDetermined {
-                Button("Erlauben…") { media.requestPermission(type) }.controlSize(.small)
-            } else if status != .authorized {
-                Button("Einstellungen") { MediaPermissions.openSettings(type) }.controlSize(.small)
+                Button("Erlauben…") { media.requestPermission(type) }
+                    .buttonStyle(.borderedProminent)
+            } else if !allowed {
+                Button("Einstellungen öffnen") { MediaPermissions.openSettings(type) }
             }
         }
     }

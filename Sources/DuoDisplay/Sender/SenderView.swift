@@ -35,6 +35,23 @@ enum SenderDefaults {
     }
 }
 
+
+extension SenderSession {
+    /// One-line status for the window header and the menu bar menu.
+    var statusText: String {
+        guard let name = connectedName else { return "Nicht verbunden" }
+        if case .pairing = phase { return "Code auf beiden Macs bestätigen…" }
+        if !isConnected { return "Verbinde mit \(name)…" }
+        return mode == .display ? "\(name) ist zweiter Bildschirm" : "\(name) wird normal genutzt"
+    }
+
+    var statusTone: StatusTone {
+        if case .failed = phase { return .error }
+        if isConnected { return .ok }
+        return isBusy ? .working : .idle
+    }
+}
+
 struct SenderView: View {
     @ObservedObject var session: SenderSession
     @AppStorage("sender.codec3") private var codecRaw = Int(VideoCodec.prores.rawValue)
@@ -51,285 +68,338 @@ struct SenderView: View {
 
     let onBack: () -> Void
 
+    private var isProRes: Bool { codecRaw == Int(VideoCodec.prores.rawValue) }
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Button(action: onBack) { Label("Zurück", systemImage: "chevron.left") }
-                        .buttonStyle(.borderless)
-                        .disabled(session.isBusy)
-                    Spacer()
-                }
-                Text("Bildschirm erweitern").font(.title2.bold())
+        VStack(spacing: 0) {
+            PageHeader(symbol: "macbook",
+                       title: "Bildschirm erweitern",
+                       status: session.statusText,
+                       tone: session.statusTone)
+                .padding(.horizontal, 28)
+                .padding(.top, 18)
 
-                ThunderboltStatusView(links: session.thunderboltLinks)
-                PairingStatusView(pairedName: session.pairedName,
-                                  unpairedText: "Beim ersten „Verbinden“ zeigen beide Macs denselben 6-stelligen Code – auf beiden „Koppeln“ klicken. Danach verbindet sich dieses MacBook nur noch mit diesem Mac.",
-                                  onForget: { session.forgetPairing() })
-                AccessibilityStatusView(granted: session.accessibilityGranted,
-                                        text: "Nötig, damit Tastatur und Trackpad des anderen Macs hier tippen, klicken, scrollen und Gesten ausführen können.")
-
-                if session.isConnected { modeBox }
-
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 8) {
-                        if session.receivers.isEmpty {
-                            HStack(spacing: 8) {
-                                ProgressView().controlSize(.small)
-                                Text("Suche Macs, auf denen DuoDisplay als Bildschirm läuft…")
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(.vertical, 6)
-                        }
-                        ForEach(session.receivers) { receiverRow($0) }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(4)
-                } label: { Text("Verfügbare Macs") }
-
-                MediaBox(media: session.media, systemAudio: $systemAudio, audioLine: session.audioLine)
-
-                GroupBox {
-                    Form {
-                        Picker("Der andere Mac steht", selection: $receiverRight) {
-                            Text("rechts vom MacBook").tag(true)
-                            Text("links vom MacBook").tag(false)
-                        }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Toggle("„Normal nutzen“: Mit der Maus über den Rand des iMac aufs MacBook wechseln", isOn: $edgeSwitch)
-                            Text("Schiebe den Zeiger am \(receiverRight ? "linken" : "rechten") Rand des iMac etwas weiter – dann steuern Maus, Trackpad und Tastatur des iMac dieses MacBook. Am \(receiverRight ? "rechten" : "linken") Rand des MacBook geht es zurück. ⌃⌥⌘D auf dem iMac holt die Eingaben jederzeit zurück. Universal Control dafür am besten ausschalten.")
-                                .font(.caption).foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Picker("Codec", selection: $codecRaw) {
-                                Text("ProRes (Standard, geringste Verzögerung – nur Thunderbolt)").tag(Int(VideoCodec.prores.rawValue))
-                                Text("HEVC (wenig Daten, auch ohne Thunderbolt)").tag(Int(VideoCodec.hevc.rawValue))
-                                Text("H.264 (für ältere Macs)").tag(Int(VideoCodec.h264.rawValue))
-                            }
-                            if codecRaw == Int(VideoCodec.prores.rawValue) {
-                                Text("Etwa halb so viel Zeit für Kodieren und Dekodieren wie HEVC, jedes Bild steht für sich (kein Warten auf Keyframes). Braucht dafür rund 250–600 Mbit/s. Ohne Thunderbolt oder ohne ProRes-Hardware nimmt DuoDisplay automatisch HEVC. Am besten mit MTU „Jumbo (9000)“ auf beiden Macs.")
-                                    .font(.caption).foregroundStyle(.secondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                        Picker("Auflösung", selection: $qualityRaw) {
-                            ForEach(StreamQuality.allCases) { Text($0.label).tag($0.rawValue) }
-                        }
-                        VStack(alignment: .leading, spacing: 4) {
-                            Toggle("Auflösung automatisch reduzieren, wenn der Encoder nicht hinterherkommt", isOn: $autoReduce)
-                            Toggle("Danach automatisch wieder erhöhen, sobald genug Reserve da ist", isOn: $autoRestore)
-                                .disabled(!autoReduce)
-                                .padding(.leading, 20)
-                            Text(autoReduce
-                                 ? "Der zweite Bildschirm bleibt immer gleich scharf eingerichtet – nur der Videostream wird kleiner."
-                                 : "Aus: Die gewählte Auflösung bleibt fest, auch wenn dadurch Bilder ausfallen.")
-                                .font(.caption).foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        Picker("Bildrate", selection: $fps) {
-                            Text("Wie der iMac (empfohlen)").tag(0)
-                            Text("120 Hz – doppelte Last für das MacBook").tag(120)
-                            Text("60 Hz").tag(60)
-                        }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Slider(value: $bitrate, in: 20...400, step: 10) { Text("Bitrate") }
-                                .disabled(codecRaw == Int(VideoCodec.prores.rawValue))
-                            Text(codecRaw == Int(VideoCodec.prores.rawValue)
-                                 ? "Bei ProRes ergibt sich die Datenrate aus dem Bildinhalt (gilt nur, falls HEVC einspringt)"
-                                 : "\(Int(bitrate)) Mbit/s – über Thunderbolt sind hohe Werte unproblematisch")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        Toggle("Mauszeiger lokal zeichnen (ohne Video-Verzögerung)", isOn: $localCursor)
-                        Toggle("Nur über Thunderbolt verbinden", isOn: $thunderboltOnly)
-                    }
-                    .padding(4)
-                } label: { Text("Einstellungen (gelten sofort)") }
-                .onChange(of: qualityRaw) { session.settingsChanged(qualityChanged: true) }
-                .onChange(of: codecRaw) { session.settingsChanged() }
-                .onChange(of: fps) { session.settingsChanged() }
-                .onChange(of: bitrate) { session.settingsChanged() }
-                .onChange(of: localCursor) { session.settingsChanged() }
-                .onChange(of: receiverRight) { session.settingsChanged(); session.sendEdgeConfig() }
-                .onChange(of: edgeSwitch) { session.sendEdgeConfig() }
-                .onChange(of: autoReduce) { session.autoScaleSettingsChanged() }
-                .onChange(of: autoRestore) { session.autoScaleSettingsChanged() }
-                .onChange(of: systemAudio) { session.systemAudioChanged() }
-
-                if case .failed(let message) = session.phase {
-                    Label(message, systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.red)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+            Form {
+                if session.isConnected { modeSection }
+                receiversSection
+                RequirementsSection(
+                    links: session.thunderboltLinks,
+                    pairedName: session.pairedName,
+                    unpairedText: "Beim ersten „Verbinden“ zeigen beide Macs denselben 6-stelligen Code – auf beiden „Koppeln“ klicken. Danach verbindet sich dieses MacBook nur noch mit diesem Mac.",
+                    accessibilityGranted: session.accessibilityGranted,
+                    accessibilityText: "Nötig, damit Tastatur und Trackpad des anderen Macs hier tippen, klicken, scrollen und Gesten ausführen können.",
+                    onForget: { session.forgetPairing() })
+                MediaSection(media: session.media, systemAudio: $systemAudio, audioLine: session.audioLine)
+                arrangementSection
+                qualitySection
+                advancedSection
+                RoleSection(symbol: "macbook", title: "Bildschirm erweitern",
+                            detail: "Dieser Mac bekommt den zusätzlichen Bildschirm.",
+                            disabledReason: session.isBusy ? "Zum Ändern zuerst die Verbindung trennen." : nil,
+                            onChange: onBack)
             }
-            .padding(20)
+            .formStyle(.grouped)
         }
-        .frame(minWidth: 560, minHeight: 640)
+        .designAnimation(value: session.isConnected)
+        .designAnimation(value: session.mode)
+        .designAnimation(value: session.receivers)
+        .frame(minWidth: 600, minHeight: 680)
+        .onChange(of: qualityRaw) { session.settingsChanged(qualityChanged: true) }
+        .onChange(of: codecRaw) { session.settingsChanged() }
+        .onChange(of: fps) { session.settingsChanged() }
+        .onChange(of: bitrate) { session.settingsChanged() }
+        .onChange(of: localCursor) { session.settingsChanged() }
+        .onChange(of: receiverRight) { session.settingsChanged(); session.sendEdgeConfig() }
+        .onChange(of: edgeSwitch) { session.sendEdgeConfig() }
+        .onChange(of: autoReduce) { session.autoScaleSettingsChanged() }
+        .onChange(of: autoRestore) { session.autoScaleSettingsChanged() }
+        .onChange(of: systemAudio) { session.systemAudioChanged() }
     }
 
-    private var modeBox: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 8) {
-                Picker("", selection: Binding(get: { session.mode }, set: { session.setMode($0) })) {
-                    Text("Als zweiter Bildschirm").tag(LinkMode.display)
-                    Text("Normal nutzen").tag(LinkMode.local)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                Text("Umschalten jederzeit mit \(GlobalHotKey.label) – auf beiden Macs. \(GlobalHotKey.pipLabel) zeigt diesen Bildschirm als Bild-in-Bild auf dem iMac.").font(.callout)
-                if session.mode == .local && session.edgeActive {
-                    Label("Maus und Tastatur des iMac steuern gerade dieses MacBook", systemImage: "cursorarrow.motionlines")
-                        .font(.caption).foregroundStyle(.green)
-                }
-                if session.mode == .display {
+    // MARK: Sections
+
+    private var modeSection: some View {
+        Section {
+            Picker("Modus", selection: Binding(get: { session.mode }, set: { session.setMode($0) })) {
+                Text("Zweiter Bildschirm").tag(LinkMode.display)
+                Text("Normal nutzen").tag(LinkMode.local)
+            }
+            .pickerStyle(.segmented)
+
+            if session.mode == .local && session.edgeActive {
+                Label("Maus und Tastatur des iMac steuern gerade dieses MacBook", systemImage: "cursorarrow.motionlines")
+                    .foregroundStyle(.green)
+                    .transition(.opacity)
+            }
+            if session.mode == .display {
+                VStack(alignment: .leading, spacing: 4) {
                     if !session.detailLine.isEmpty {
-                        Text(session.detailLine).font(.caption).foregroundStyle(.secondary)
+                        Text(session.detailLine).font(.callout).foregroundStyle(.secondary)
                     }
-                    Text(session.statsLine.isEmpty ? (session.streaming ? "…" : "Starte Bildschirm…") : session.statsLine)
-                        .font(.system(.caption, design: .monospaced))
-                        .fixedSize(horizontal: false, vertical: true)
+                    if session.statsLine.isEmpty {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.small)
+                            Text(session.streaming ? "Messe…" : "Starte Bildschirm…")
+                                .font(.callout).foregroundStyle(.secondary)
+                        }
+                    } else {
+                        StatsText(text: session.statsLine)
+                    }
                 }
+                .transition(.opacity)
+            }
+        } header: {
+            Text("Gekoppelt mit \(session.connectedName ?? "")")
+        } footer: {
+            VStack(alignment: .leading, spacing: 4) {
+                ShortcutHint(text: "Umschalten jederzeit mit", keys: GlobalHotKey.label, trailing: "– auf beiden Macs.")
+                ShortcutHint(text: "Bild-in-Bild auf dem iMac:", keys: GlobalHotKey.pipLabel)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(4)
-        } label: { Text("Gekoppelt mit \(session.connectedName ?? "")") }
+        }
     }
+
+    private var receiversSection: some View {
+        Section("Verfügbare Macs") {
+            if case .failed(let message) = session.phase {
+                NoticeRow(text: message, tone: .error)
+            }
+            if session.receivers.isEmpty {
+                HStack(spacing: 10) {
+                    ProgressView().controlSize(.small)
+                    Text("Suche Macs, auf denen DuoDisplay als Bildschirm läuft…")
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 4)
+            }
+            ForEach(session.receivers) { receiverRow($0) }
+        }
+    }
+
+    private var arrangementSection: some View {
+        Section {
+            Picker(selection: $receiverRight) {
+                Text("Links").tag(false)
+                Text("Rechts").tag(true)
+            } label: {
+                Text("Der iMac steht")
+                Text("vom MacBook aus gesehen")
+            }
+            .pickerStyle(.segmented)
+            .fixedSize()
+
+            Toggle(isOn: $edgeSwitch) {
+                Text("Über den Bildschirmrand wechseln")
+                Text("Im Modus „Normal nutzen“: Zeiger am \(receiverRight ? "linken" : "rechten") Rand des iMac weiterschieben – dann steuern Maus, Trackpad und Tastatur des iMac dieses MacBook. Am \(receiverRight ? "rechten" : "linken") Rand des MacBook geht es zurück, \(GlobalHotKey.label) auf dem iMac holt die Eingaben jederzeit zurück. Universal Control dafür am besten ausschalten.")
+            }
+        } header: {
+            Text("Anordnung & Steuerung")
+        }
+    }
+
+    private var qualitySection: some View {
+        Section {
+            Picker(selection: $codecRaw) {
+                Text("ProRes").tag(Int(VideoCodec.prores.rawValue))
+                Text("HEVC").tag(Int(VideoCodec.hevc.rawValue))
+                Text("H.264").tag(Int(VideoCodec.h264.rawValue))
+            } label: {
+                Text("Codec")
+                Text(codecDescription)
+            }
+
+            Picker(selection: $qualityRaw) {
+                ForEach(StreamQuality.allCases) { Text(Self.shortName($0)).tag($0.rawValue) }
+            } label: {
+                Text("Auflösung")
+                Text(Self.qualityDescription(StreamQuality(rawValue: qualityRaw) ?? .retina))
+            }
+
+            Toggle(isOn: $autoReduce) {
+                Text("Bei Überlastung automatisch reduzieren")
+                Text(autoReduce
+                     ? "Wenn der Encoder nicht hinterherkommt, wird nur der Videostream kleiner – der zweite Bildschirm bleibt gleich scharf eingerichtet."
+                     : "Die gewählte Auflösung bleibt fest, auch wenn dadurch Bilder ausfallen.")
+            }
+            Toggle(isOn: $autoRestore) {
+                Text("Danach wieder erhöhen")
+                Text("Sobald genug Reserve da ist.")
+            }
+            .disabled(!autoReduce)
+
+            Picker(selection: $fps) {
+                Text("Wie der iMac").tag(0)
+                Text("120 Hz").tag(120)
+                Text("60 Hz").tag(60)
+            } label: {
+                Text("Bildrate")
+                Text(fps == 120 ? "Doppelte Last für das MacBook." : (fps == 0 ? "Empfohlen – folgt der Bildwiederholrate des iMac." : "Feste 60 Bilder pro Sekunde."))
+            }
+        } header: {
+            Text("Bildqualität")
+        } footer: {
+            Text("Änderungen gelten sofort. Der Stream startet dabei kurz neu, der zweite Bildschirm und seine Fenster bleiben, wo sie sind.")
+                .footerText()
+        }
+    }
+
+    private var advancedSection: some View {
+        Section("Erweitert") {
+            LabeledContent {
+                HStack(spacing: 10) {
+                    Slider(value: $bitrate, in: 20...400, step: 10)
+                        .labelsHidden()
+                        .frame(minWidth: 140, maxWidth: 220)
+                    Text("\(Int(bitrate)) Mbit/s")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 84, alignment: .trailing)
+                }
+                .disabled(isProRes)
+            } label: {
+                Text("Bitrate")
+                Text(isProRes
+                     ? "Bei ProRes ergibt sich die Datenrate aus dem Bildinhalt – gilt nur, falls HEVC einspringt."
+                     : "Über Thunderbolt sind hohe Werte unproblematisch.")
+            }
+            Toggle(isOn: $localCursor) {
+                Text("Mauszeiger lokal zeichnen")
+                Text("Der Zeiger erscheint ohne Video-Verzögerung.")
+            }
+            Toggle(isOn: $thunderboltOnly) {
+                Text("Nur über Thunderbolt verbinden")
+                Text("Macs, die nur per WLAN oder Ethernet erreichbar sind, lassen sich dann nicht verbinden.")
+            }
+        }
+    }
+
+    // MARK: Rows
 
     @ViewBuilder
     private func receiverRow(_ receiver: SenderSession.Receiver) -> some View {
         let reachable = !thunderboltOnly || receiver.thunderboltInterface != nil
         HStack(spacing: 10) {
-            Image(systemName: "display").font(.title2)
+            SymbolTile(systemName: "display", color: .blue)
             VStack(alignment: .leading, spacing: 2) {
-                Text(receiver.name).font(.headline)
+                Text(receiver.name)
                 if let tb = receiver.thunderboltInterface {
                     Label("Thunderbolt (\(tb.name))", systemImage: "bolt.fill")
-                        .font(.caption).foregroundStyle(.green)
+                        .font(.callout).foregroundStyle(.green)
                 } else {
                     Label("Kein Thunderbolt – nur \(receiver.otherInterfaces.joined(separator: ", "))", systemImage: "wifi")
-                        .font(.caption).foregroundStyle(.orange)
+                        .font(.callout).foregroundStyle(.orange)
                 }
             }
-            Spacer()
-            if session.connectedName == receiver.name {
-                if session.isConnected {
-                    Button("Trennen", role: .destructive) { session.disconnect() }
-                } else if case .pairing = session.phase {
-                    Text("Code auf beiden Macs bestätigen…").font(.caption).foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            Group {
+                if session.connectedName == receiver.name {
+                    if session.isConnected {
+                        Button("Trennen") { session.disconnect() }
+                    } else if case .pairing = session.phase {
+                        Text("Code bestätigen…").font(.callout).foregroundStyle(.secondary)
+                    } else {
+                        ProgressView().controlSize(.small)
+                    }
                 } else {
-                    ProgressView().controlSize(.small)
+                    Button("Verbinden") { session.connect(to: receiver) }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!reachable || session.isBusy)
+                        .help(reachable ? "Mit \(receiver.name) verbinden" : "Nur über Thunderbolt erlaubt (siehe „Erweitert“)")
                 }
-            } else {
-                Button("Verbinden") { session.connect(to: receiver) }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!reachable || session.isBusy)
             }
+            .transition(.opacity)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
     }
-}
 
-struct ThunderboltStatusView: View {
-    let links: [NetLink]
+    // MARK: Texts
 
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: links.isEmpty ? "bolt.slash.fill" : "bolt.fill")
-                .foregroundStyle(links.isEmpty ? .orange : .green)
-            VStack(alignment: .leading, spacing: 2) {
-                if links.isEmpty {
-                    Text("Keine Thunderbolt-Verbindung aktiv").font(.subheadline.bold())
-                    Text("Verbinde beide Macs mit einem Thunderbolt-Kabel. macOS richtet die „Thunderbolt Bridge“ automatisch ein.")
-                        .font(.caption).foregroundStyle(.secondary)
-                } else {
-                    Text("Thunderbolt verbunden").font(.subheadline.bold())
-                    ForEach(links) { link in
-                        Text(link.summary).font(.caption.monospaced()).foregroundStyle(.secondary)
-                    }
-                    if links.allSatisfy({ $0.mtu < 9000 }) {
-                        Text("Tipp: MTU auf beiden Macs auf „Jumbo (9000)“ stellen → weniger Pakete, noch geringere Latenz.")
-                            .font(.caption2).foregroundStyle(.secondary)
-                    }
-                }
-            }
+    private var codecDescription: String {
+        switch VideoCodec(rawValue: UInt8(codecRaw)) ?? .prores {
+        case .prores:
+            return "Geringste Verzögerung: etwa halb so viel Zeit fürs Kodieren wie HEVC, jedes Bild steht für sich. Braucht rund 250–600 Mbit/s – ohne Thunderbolt oder ProRes-Hardware nimmt DuoDisplay automatisch HEVC. Am besten mit MTU „Jumbo (9000)“ auf beiden Macs."
+        case .hevc:
+            return "Wenig Daten, funktioniert auch ohne Thunderbolt."
+        case .h264:
+            return "Für ältere Macs."
         }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.1)))
+    }
+
+    private static func shortName(_ quality: StreamQuality) -> String {
+        switch quality {
+        case .retina: return "Retina (2×)"
+        case .balanced: return "Ausgewogen (1,5×)"
+        case .fast: return "Schnell (1×)"
+        }
+    }
+
+    private static func qualityDescription(_ quality: StreamQuality) -> String {
+        switch quality {
+        case .retina: return "Volle Retina-Pixel – gestochen scharf."
+        case .balanced: return "Retina-Oberfläche, gestreamt mit 1,5× – ca. 3 ms schneller."
+        case .fast: return "Ohne HiDPI – minimale Latenz."
+        }
     }
 }
 
 /// Sound to the iMac, and the iMac camera / microphone as devices on this Mac.
-struct MediaBox: View {
+struct MediaSection: View {
     @ObservedObject var media: MediaHub
     @Binding var systemAudio: Bool
     let audioLine: String
 
     var body: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Toggle("Ton im Bildschirm-Modus über den iMac abspielen", isOn: $systemAudio)
-                    Text(audioLine.isEmpty ? "Das MacBook ist dann stumm, alles klingt aus den iMac-Lautsprechern. Braucht die Freigabe „Bildschirm- & Systemaudioaufnahme“."
-                                           : audioLine)
-                        .font(.caption).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Divider()
-
-                deviceRow(icon: "web.camera", title: "iMac-Kamera",
-                          state: media.cameraInstalled
-                              ? (media.cameraInUse ? (media.cameraReceiving ? "wird genutzt – Bild kommt vom iMac" : "wird genutzt – warte auf den iMac…")
-                                                   : "bereit – erscheint in FaceTime, Zoom & Co. als „iMac-Kamera (DuoDisplay)“")
-                              : "nicht aktiviert",
-                          ok: media.cameraInstalled,
-                          message: media.cameraMessage) {
-                    if !media.cameraInstalled {
-                        Button("Kamera-Erweiterung aktivieren…") { media.activateCameraExtension() }
-                    }
-                }
-
-                deviceRow(icon: "mic", title: "iMac-Mikrofon",
-                          state: media.micInstalled
-                              ? (media.micInUse ? (media.micReceiving ? "wird genutzt – Ton kommt vom iMac" : "wird genutzt – warte auf den iMac…")
-                                                : "bereit – als „iMac-Mikrofon (DuoDisplay)“ auswählbar")
-                              : "nicht installiert",
-                          ok: media.micInstalled,
-                          message: media.micMessage) {
-                    if media.installingMic {
-                        ProgressView().controlSize(.small)
-                    } else if !media.micInstalled || media.micNeedsUpdate {
-                        Button(media.micInstalled ? "Aktualisieren…" : "Installieren…") { media.installMic() }
-                    }
-                }
-
-                if let problem = media.remoteProblem {
-                    Label("iMac: \(problem)", systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption).foregroundStyle(.orange)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Text("Kamera und Mikrofon des iMac laufen nur, solange eine App hier sie benutzt.")
-                    .font(.caption2).foregroundStyle(.secondary)
+        Section {
+            Toggle(isOn: $systemAudio) {
+                Text("Ton über den iMac abspielen")
+                Text(audioLine.isEmpty
+                     ? "Im Bildschirm-Modus ist das MacBook dann stumm, alles klingt aus den iMac-Lautsprechern. Braucht die Freigabe „Bildschirm- & Systemaudioaufnahme“."
+                     : audioLine)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(4)
-        } label: { Text("Ton, Kamera & Mikrofon") }
+
+            StatusRow(symbol: "web.camera.fill", color: cameraColor, title: "iMac-Kamera",
+                      detail: media.cameraInstalled
+                          ? (media.cameraInUse ? (media.cameraReceiving ? "Wird genutzt – Bild kommt vom iMac" : "Wird genutzt – warte auf den iMac…")
+                                               : "Bereit – in FaceTime, Zoom & Co. als „iMac-Kamera (DuoDisplay)“")
+                          : "Nicht aktiviert",
+                      warning: media.cameraMessage) {
+                if !media.cameraInstalled {
+                    Button("Aktivieren…") { media.activateCameraExtension() }
+                }
+            }
+
+            StatusRow(symbol: "mic.fill", color: micColor, title: "iMac-Mikrofon",
+                      detail: media.micInstalled
+                          ? (media.micInUse ? (media.micReceiving ? "Wird genutzt – Ton kommt vom iMac" : "Wird genutzt – warte auf den iMac…")
+                                            : "Bereit – als „iMac-Mikrofon (DuoDisplay)“ auswählbar")
+                          : "Nicht installiert",
+                      warning: media.micMessage) {
+                if media.installingMic {
+                    ProgressView().controlSize(.small)
+                } else if !media.micInstalled || media.micNeedsUpdate {
+                    Button(media.micInstalled ? "Aktualisieren…" : "Installieren…") { media.installMic() }
+                }
+            }
+
+            if let problem = media.remoteProblem {
+                NoticeRow(text: "iMac: \(problem)")
+            }
+        } header: {
+            Text("Ton, Kamera & Mikrofon")
+        } footer: {
+            Text("Kamera und Mikrofon des iMac laufen nur, solange eine App auf diesem Mac sie benutzt.")
+                .footerText()
+        }
     }
 
-    private func deviceRow<Actions: View>(icon: String, title: String, state: String, ok: Bool, message: String?,
-                                          @ViewBuilder actions: () -> Actions) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: icon).font(.title3).foregroundStyle(ok ? .green : .secondary).frame(width: 24)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.subheadline.bold())
-                Text(state).font(.caption).foregroundStyle(.secondary)
-                if let message {
-                    Text(message).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            Spacer()
-            actions().controlSize(.small)
-        }
+    /// Same colors as the macOS privacy indicators: camera green, microphone orange while in use.
+    private var cameraColor: Color {
+        guard media.cameraInstalled else { return .gray }
+        return media.cameraInUse ? .green : .blue
+    }
+
+    private var micColor: Color {
+        guard media.micInstalled else { return .gray }
+        return media.micInUse ? .orange : .blue
     }
 }

@@ -35,10 +35,17 @@ CAMERA_ID="$BUNDLE_ID.CameraExtension"
 
 swift build -c release
 
+# SwiftPM writes the deployment target (14.0) into the binary as its SDK version as well. macOS then
+# runs the app in compatibility mode with the pre-Liquid Glass look (old window buttons, title bar
+# and controls). Stamp the real SDK version; the minimum system version stays 14.0.
+SDK_VERSION="$(xcrun --sdk macosx --show-sdk-version)"
+stamp_sdk() { vtool -set-build-version macos 14.0 "$SDK_VERSION" -replace -output "$1" "$1" 2>/dev/null; }
+
 APP="build/DuoDisplay.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/DuoDisplay "$APP/Contents/MacOS/DuoDisplay"
+stamp_sdk "$APP/Contents/MacOS/DuoDisplay"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 plutil -replace CFBundleIdentifier -string "$BUNDLE_ID" "$APP/Contents/Info.plist"
 
@@ -98,6 +105,7 @@ EXT_TEAM="${TEAM_ID:-LOCAL}"
 EXT="$APP/Contents/Library/SystemExtensions/$CAMERA_ID.systemextension"
 mkdir -p "$EXT/Contents/MacOS"
 cp .build/release/DuoDisplayCamera "$EXT/Contents/MacOS/$CAMERA_ID"
+stamp_sdk "$EXT/Contents/MacOS/$CAMERA_ID"
 sed -e "s/__BUNDLE_ID__/$BUNDLE_ID/g" -e "s/__TEAM_ID__/$EXT_TEAM/g" \
     Plugins/CameraExtension/Info.plist > "$EXT/Contents/Info.plist"
 

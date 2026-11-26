@@ -255,4 +255,5 @@ open -n -W build/DuoDisplay.app --args --piptest /tmp/piptest.txt  # Bild-in-Bil
 build/DuoDisplay.app/Contents/MacOS/DuoDisplay --mediatest    # Ton-Pakete, fremde/wiederholte Pakete am UDP-Port, Jitter-Puffer mit Taktdrift, Kamera-Strecke, Wiedergabe
 build/DuoDisplay.app/Contents/MacOS/DuoDisplay --transporttest  # nur das Netz: ProRes-großes Bild verschlüsselt vs. unverschlüsselt, Aufschlag je Seite
 build/DuoDisplay.app/Contents/MacOS/DuoDisplay --rendertest --window  # Empfang im echten Fenster (60 fps + Zeiger mit 480 Hz, dann 120 fps): Verzögerung darf sich nicht aufstauen, Zeiger-Ebene sitzt richtig (mit --prores: ProRes statt HEVC)
+build/DuoDisplay.app/Contents/MacOS/DuoDisplay --uisnapshot build/ui-snapshots  # alle Fenster (Modus-Wahl, MacBook, iMac, Kopplungscode) hell und dunkel als PNG, ohne zu verbinden
 ```
