@@ -15,14 +15,14 @@ final class ReceiverService: ObservableObject {
     @Published private(set) var peerName: String? {
         didSet { connectedActivity.set(peerName != nil) }
     }
-    private let connectedActivity = LatencyActivity(reason: "DuoDisplay ist mit dem MacBook verbunden")
+    private let connectedActivity = LatencyActivity(reason: "DuoDisplay is connected to the MacBook")
     @Published private(set) var mode: LinkMode = .local
-    @Published private(set) var status = "Starte…"
+    @Published private(set) var status = "Starting…"
     @Published private(set) var statsLine = ""
     @Published private(set) var thunderboltLinks: [NetLink] = []
     @Published private(set) var accessibilityGranted = Permissions.accessibilityGranted
     @Published private(set) var inputForwarding = false
-    /// "Normal nutzen": keyboard and pointer of this Mac currently control the MacBook.
+    /// "Normal Use": keyboard and pointer of this Mac currently control the MacBook.
     @Published private(set) var edgeActive = false
     /// Edge of this Mac's screens that leads to the MacBook (nil = crossing switched off there).
     @Published private(set) var peerEdge: ScreenEdge? {
@@ -41,7 +41,7 @@ final class ReceiverService: ObservableObject {
     }
     /// The MacBook this iMac is paired with – the only one that may connect.
     @Published private(set) var pairedName: String?
-    /// ⌃⌥⌘P: show the MacBook's main screen as picture-in-picture in "Normal nutzen" (remembered).
+    /// ⌃⌥⌘P: show the MacBook's main screen as picture-in-picture in "Normal Use" (remembered).
     @Published private(set) var pipWanted: Bool = UserDefaults.standard.bool(forKey: "receiver.pip") {
         didSet { UserDefaults.standard.set(pipWanted, forKey: "receiver.pip") }
     }
@@ -221,9 +221,9 @@ final class ReceiverService: ObservableObject {
                     guard let self else { return }
                     switch state {
                     case .ready:
-                        if !self.isConnected { self.status = "Bereit – warte auf das MacBook" }
+                        if !self.isConnected { self.status = "Ready, waiting for the MacBook" }
                     case .failed(let error):
-                        self.status = "Netzwerkfehler: \(error.localizedDescription)"
+                        self.status = "Network error: \(error.localizedDescription)"
                         self.listener?.cancel()
                         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { if self.started { self.startListener() } }
                     default:
@@ -234,7 +234,7 @@ final class ReceiverService: ObservableObject {
             listener.start(queue: controlQueue)
             self.listener = listener
         } catch {
-            status = "Netzwerkfehler: \(error.localizedDescription)"
+            status = "Network error: \(error.localizedDescription)"
         }
     }
 
@@ -330,11 +330,11 @@ final class ReceiverService: ObservableObject {
         case .pairingCode(let code, let peer):
             let refusal: String?
             if mode == .display {
-                refusal = "„\(name)“ zeigt gerade einen Bildschirm an – zum Koppeln dort erst „Normal nutzen“ wählen."
+                refusal = "“\(name)” is showing a display. To pair, choose “Normal Use” there first."
             } else if pairingChannel != nil {
-                refusal = "Auf „\(name)“ läuft gerade schon eine Kopplung."
+                refusal = "“\(name)” is already pairing."
             } else if Date() < pairingBlockedUntil {
-                refusal = "Bitte ein paar Sekunden warten und erneut verbinden."
+                refusal = "Wait a few seconds and connect again."
             } else {
                 refusal = nil
             }
@@ -352,7 +352,7 @@ final class ReceiverService: ObservableObject {
                 onConfirm: { [weak self] in self?.controlQueue.async { handshake.confirmPairing() } },
                 onCancel: { [weak self] in
                     self?.pairingBlockedUntil = Date() + 10
-                    self?.controlQueue.async { handshake.cancelPairing("Die Kopplung wurde am iMac abgelehnt.") }
+                    self?.controlQueue.async { handshake.cancelPairing("Pairing was declined on the iMac.") }
                 })
 
         case .paired:
@@ -394,7 +394,7 @@ final class ReceiverService: ObservableObject {
         switch message.kind {
         case .hello:
             peerName = message.name ?? "Mac"
-            status = "Verbunden mit \(peerName!)"
+            status = "Connected to \(peerName!)"
             startPing(channel)
             if let port = message.udpPort, let connection, let mediaSealer,
                case let .hostPort(host, _)? = connection.currentPath?.remoteEndpoint {
@@ -433,21 +433,21 @@ final class ReceiverService: ObservableObject {
                 let previous = pipMacPoints.withLock { points -> CGSize in let old = points; points = size; return old }
                 pipControllable = message.pipControl ?? false
                 if pipExtended && message.pipExtended == nil {
-                    pipProblem = "Das MacBook kann nur spiegeln – dort DuoDisplay aktualisieren, dann geht auch „Erweitert“."
+                    pipProblem = "The MacBook can only mirror. Update DuoDisplay there to use “Extended”."
                 } else {
                     pipProblem = pipControllable ? nil
-                        : "Steuern über das Bild geht erst, wenn DuoDisplay auf dem MacBook die Bedienungshilfen-Freigabe hat."
+                        : "Controlling through the picture needs Accessibility permission for DuoDisplay on the MacBook."
                 }
                 // Sent again when only the permission changed: the window stays as it is then.
                 if !pipShowing || previous != size {
                     pipWindow.show(contentPoints: size, localCursor: message.localCursor ?? false)
                 }
                 pipShowing = true
-                ddLog.notice("Bild-in-Bild: \(w)×\(h) pt, steuerbar \(self.pipControllable)")
+                ddLog.notice("Picture-in-picture: \(w)×\(h) pt, controllable \(self.pipControllable)")
                 updateEdgeWatcher()
             } else {
                 // Failed on the MacBook (e.g. no screen recording permission): don't retry on every connect.
-                pipProblem = message.text ?? "Das MacBook konnte sein Bild nicht senden."
+                pipProblem = message.text ?? "The MacBook could not send its screen."
                 pipWanted = false
                 stopPiP(notifyPeer: false)
             }
@@ -500,7 +500,7 @@ final class ReceiverService: ObservableObject {
         pingTimer = nil
         if peerName != nil {
             peerName = nil
-            status = "Bereit – warte auf das MacBook"
+            status = "Ready, waiting for the MacBook"
         }
     }
 
@@ -528,7 +528,7 @@ final class ReceiverService: ObservableObject {
         info.proRes = VTIsHardwareDecodeSupported(VideoCodec.prores.cmCodecType)
 
         stopPiP(notifyPeer: false)   // the MacBook stops that stream itself; pipWanted stays for later
-        ddLog.notice("Bildschirm-Modus: Sitzung \(self.sessionCounter), Zeiger lokal \(localCursor), schon aktiv \(self.mode == .display), \(pointW)×\(pointH) pt")
+        ddLog.notice("Display mode: session \(self.sessionCounter), local pointer \(localCursor), already active \(self.mode == .display), \(pointW)×\(pointH) pt")
         pipeline.activate(session: sessionCounter) { [weak control] message in control?.send(message) }
         control.send(info)
 
@@ -544,7 +544,7 @@ final class ReceiverService: ObservableObject {
             systemAudio.start()
             activity = ProcessInfo.processInfo.beginActivity(
                 options: [.userInitiated, .latencyCritical, .idleDisplaySleepDisabled],
-                reason: "DuoDisplay zeigt einen Bildschirm an")
+                reason: "DuoDisplay is showing a display")
             mode = .display
             updateEdgeWatcher()
         }
@@ -553,7 +553,7 @@ final class ReceiverService: ObservableObject {
 
     private func enterLocal() {
         guard mode == .display else { return }
-        ddLog.notice("Normal nutzen")
+        ddLog.notice("Normal Use")
         activateInputCapture(false)
         systemAudio.stop()
         pipeline.deactivate()
@@ -567,12 +567,12 @@ final class ReceiverService: ObservableObject {
         NSApp.hide(nil)   // give focus back to whatever was in front before
     }
 
-    // MARK: Picture-in-picture ("Normal nutzen", ⌃⌥⌘P)
+    // MARK: Picture-in-picture ("Normal Use", ⌃⌥⌘P)
 
     /// ⌃⌥⌘P on either Mac, the menu or the window's close button. In display mode it switches to
-    /// "Normal nutzen" with the picture-in-picture open.
+    /// "Normal Use" with the picture-in-picture open.
     func togglePiP() {
-        // The picture is never on screen in display mode: there ⌃⌥⌘P always means "Normal nutzen"
+        // The picture is never on screen in display mode: there ⌃⌥⌘P always means "Normal Use"
         // with the picture open – also when it is still wanted from before the display mode.
         if mode == .display && isConnected {
             pipWanted = true
@@ -600,7 +600,7 @@ final class ReceiverService: ObservableObject {
         guard pipRequested else { return }
         // Input back here first – the screen the MacBook pointer is kept on changes.
         if pipSessionBox.withLock({ $0 }) != nil { endEdgeSession(fraction: nil, notifyPeer: true) }
-        ddLog.notice("Bild-in-Bild: \(extended ? "erweitert" : "gespiegelt", privacy: .public)")
+        ddLog.notice("Picture-in-picture: \(extended ? "extended" : "mirrored", privacy: .public)")
         startPiP()   // pipStart again; the window stays open until pipState arrives
     }
 
@@ -626,7 +626,7 @@ final class ReceiverService: ObservableObject {
         request.proRes = VTIsHardwareDecodeSupported(VideoCodec.prores.cmCodecType)
         request.pipExtended = pipExtended
         pipWindow.setExtended(pipExtended)
-        ddLog.notice("Bild-in-Bild angefordert: Sitzung \(self.sessionCounter), \(self.pipExtended ? "erweitert" : "gespiegelt", privacy: .public)")
+        ddLog.notice("Picture-in-picture requested: session \(self.sessionCounter), \(self.pipExtended ? "extended" : "mirrored", privacy: .public)")
         pipeline.activate(session: sessionCounter) { [weak control] message in control?.send(message) }
         control.send(request)
         // The window opens once the MacBook answers with pipState (its screen size).
@@ -636,7 +636,7 @@ final class ReceiverService: ObservableObject {
     private func stopPiP(notifyPeer: Bool) {
         guard pipRequested || pipShowing else { return }
         if pipSessionBox.withLock({ $0 }) != nil { endEdgeSession(fraction: nil, notifyPeer: true) }
-        ddLog.notice("Bild-in-Bild geschlossen")
+        ddLog.notice("Picture-in-picture closed")
         pipRequested = false
         pipShowing = false
         pipControllable = false
@@ -646,9 +646,9 @@ final class ReceiverService: ObservableObject {
         updateEdgeWatcher()
     }
 
-    // MARK: Edge switching ("Normal nutzen")
+    // MARK: Edge switching ("Normal Use")
 
-    /// Watch the edge only while paired, in "Normal nutzen" and not already on the MacBook.
+    /// Watch the edge only while paired, in "Normal Use" and not already on the MacBook.
     private func updateEdgeWatcher() {
         let watch = isConnected && mode == .local && !edgeActive && !edgeBox.withLock({ $0 })
         let pip = watch && pipShowing && pipControllable ? pipWindow.target : nil
@@ -679,7 +679,7 @@ final class ReceiverService: ObservableObject {
                 self.endEdgeSession(fraction: nil, notifyPeer: true)
                 return
             }
-            ddLog.notice("Maus und Tastatur steuern jetzt das MacBook")
+            ddLog.notice("Mouse and keyboard now control the MacBook")
             self.edgeActive = true
             self.controlQueue.async { self.lastPongNs = hostTimeNs() }
             // Freeze and hide this Mac's pointer while the MacBook is controlled (DuoDisplay is not
@@ -694,7 +694,7 @@ final class ReceiverService: ObservableObject {
     private func endEdgeSession(fraction: Double?, notifyPeer: Bool) {
         guard edgeBox.withLock({ let was = $0; $0 = false; return was }) else { return }
         pipSessionBox.withLock { $0 = nil }
-        ddLog.notice("Maus und Tastatur zurück auf diesem Mac")
+        ddLog.notice("Mouse and keyboard back on this Mac")
         if mode != .display { input.setActive(false) }
         if notifyPeer { control?.send(ControlMessage(.edgeLeave)) }
         if let fraction { warpBack(fraction: fraction, carry: .zero) }
@@ -708,7 +708,7 @@ final class ReceiverService: ObservableObject {
     private func edgeReturned(fraction: Double?, pipAt: CGPoint? = nil, pipSide: PiPSide? = nil,
                               eventTime: UInt64?, peerInfo: String? = nil) {
         guard edgeBox.withLock({ let was = $0; $0 = false; return was }) else { return }
-        input.setActive(false)   // edge sessions only exist in "Normal nutzen"; main re-checks
+        input.setActive(false)   // edge sessions only exist in "Normal Use"; main re-checks
         let carry = eventTime.map { input.motion(after: $0) } ?? InputCapture.Carry()
         let pipTarget = pipSessionBox.withLock { let t = $0; $0 = nil; return t }
         if let pipTarget {
@@ -726,7 +726,7 @@ final class ReceiverService: ObservableObject {
         let queuedNs = hostTimeNs()
         DispatchQueue.main.async { [weak self] in
             let mainLagMs = Double(hostTimeNs() &- queuedNs) / 1e6
-            ddLog.notice("Maus und Tastatur zurück auf diesem Mac – Weg \(carry.exitAgeMs ?? -1, format: .fixed(precision: 1)) ms, nachgeholt \(carry.events) Bewegungen (\(carry.motion.dx, format: .fixed(precision: 0)), \(carry.motion.dy, format: .fixed(precision: 0))) pt, Zeitstempel \(eventTime != nil), Main \(mainLagMs, format: .fixed(precision: 1)) ms · \(peerInfo ?? "MacBook: keine Angaben (alte Version)", privacy: .public)")
+            ddLog.notice("Mouse and keyboard back on this Mac: path \(carry.exitAgeMs ?? -1, format: .fixed(precision: 1)) ms, replayed \(carry.events) moves (\(carry.motion.dx, format: .fixed(precision: 0)), \(carry.motion.dy, format: .fixed(precision: 0))) pt, timestamp \(eventTime != nil), Main \(mainLagMs, format: .fixed(precision: 1)) ms · \(peerInfo ?? "MacBook: no info (old version)", privacy: .public)")
             self?.finishEdgeSession()
         }
         // Diagnostics: how long until the pointer moves again after coming back (a freeze shows up here).
@@ -736,9 +736,9 @@ final class ReceiverService: ObservableObject {
             let now = hostTimeNs()
             let p = CGEvent(source: nil)?.location ?? start
             if p != start {
-                ddLog.notice("Zeiger bewegt sich nach Rückkehr nach \(Double(now &- returnedNs) / 1e6, format: .fixed(precision: 0)) ms wieder")
+                ddLog.notice("Pointer moves again \(Double(now &- returnedNs) / 1e6, format: .fixed(precision: 0)) ms after return")
             } else if now &- returnedNs > 800_000_000 {
-                ddLog.notice("Zeiger hat sich nach Rückkehr 800 ms lang nicht bewegt")
+                ddLog.notice("Pointer did not move for 800 ms after return")
             } else {
                 controlQueue.asyncAfter(deadline: .now() + .milliseconds(4)) { poll() }
             }
@@ -774,7 +774,7 @@ final class ReceiverService: ObservableObject {
     private func updateVolumeKeys() {
         let here = mode == .display && peerAudioHere
         if input.volumeKeysStayHere != here {
-            ddLog.notice("Lautstärketasten: \(here ? "steuern diesen Mac" : "gehen ans MacBook", privacy: .public)")
+            ddLog.notice("Volume keys: \(here ? "control this Mac" : "go to the MacBook", privacy: .public)")
             input.volumeKeysStayHere = here
         }
     }

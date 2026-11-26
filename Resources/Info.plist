@@ -29,19 +29,19 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAudioCaptureUsageDescription</key>
-	<string>Im Bildschirm-Modus spielt DuoDisplay den Ton des MacBook über die Lautsprecher des iMac ab.</string>
+	<string>In Second Display mode, DuoDisplay plays the MacBook’s sound on the iMac’s speakers.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_duodisplay._tcp</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>iMac: DuoDisplay schickt das Kamerabild an das MacBook, wenn dort eine App die „iMac-Kamera“ nutzt. MacBook: DuoDisplay gibt das Bild an die virtuelle iMac-Kamera weiter.</string>
+	<string>iMac: DuoDisplay sends the camera image to the MacBook while an app there uses the iMac Camera. MacBook: DuoDisplay passes it to the virtual iMac Camera.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>DuoDisplay verbindet sich über Thunderbolt mit deinem anderen Mac, um ihn als Bildschirm zu verwenden.</string>
+	<string>DuoDisplay connects to your other Mac over Thunderbolt to use it as a display.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>DuoDisplay schickt den Ton des iMac-Mikrofons an das MacBook, wenn dort eine App das „iMac-Mikrofon“ nutzt.</string>
+	<string>DuoDisplay sends the iMac’s microphone audio to the MacBook while an app there uses the iMac Microphone.</string>
 	<key>NSSupportsAutomaticGraphicsSwitching</key>
 	<true/>
 </dict>

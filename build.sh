@@ -73,10 +73,10 @@ if [[ -n "${SIGN_IDENTITY:-}" ]]; then
 elif [[ -f "$KEYCHAIN" && -f "$KEYCHAIN_PW_FILE" ]]; then
     security unlock-keychain -p "$(cat "$KEYCHAIN_PW_FILE")" "$KEYCHAIN"
     SIGN_ARGS=(--keychain "$KEYCHAIN" --sign "$LOCAL_IDENTITY")
-    SIGNED_WITH="$LOCAL_IDENTITY (stabil – Freigaben bleiben bei Updates erhalten)"
+    SIGNED_WITH="$LOCAL_IDENTITY (stable: permissions survive rebuilds)"
 else
     SIGN_ARGS=(--sign -)
-    SIGNED_WITH="ad-hoc (Freigaben müssen nach jedem Neubau neu erteilt werden)"
+    SIGNED_WITH="ad-hoc (permissions must be granted again after every rebuild)"
 fi
 
 # --- Virtual microphone: Core Audio driver (installed from inside the app on request) ---
@@ -118,19 +118,19 @@ if [[ $CAMERA_SIGNED == 1 ]]; then
     # Check the profiles before signing – a mismatch otherwise only shows up as a refused activation.
     check_profile() {   # <profile> <bundle id> <must contain entitlement or "">
         local plist="$TMP_ENT/$(basename "$1").plist"
-        security cms -D -i "$1" > "$plist" 2>/dev/null || { echo "✗ $1 ist kein gültiges Provisioning-Profil"; exit 1; }
+        security cms -D -i "$1" > "$plist" 2>/dev/null || { echo "✗ $1 is not a valid provisioning profile"; exit 1; }
         local appid
         appid="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.application-identifier' "$plist" 2>/dev/null)"
         if [[ "$appid" != "$TEAM_ID.$2" ]]; then
-            echo "✗ $(basename "$1") gehört zu „$appid“, erwartet „$TEAM_ID.$2“"; exit 1
+            echo "✗ $(basename "$1") belongs to “$appid”, expected “$TEAM_ID.$2”"; exit 1
         fi
         if [[ -n "$3" ]] && ! /usr/libexec/PlistBuddy -c "Print :Entitlements:$3" "$plist" >/dev/null 2>&1; then
-            echo "✗ $(basename "$1") enthält „$3“ nicht – in der App-ID die Fähigkeit „System Extension“ aktivieren und das Profil neu erstellen"; exit 1
+            echo "✗ $(basename "$1") lacks “$3”. Enable the “System Extension” capability for the App ID and recreate the profile"; exit 1
         fi
         local udid
         udid="$(system_profiler SPHardwareDataType 2>/dev/null | awk -F': ' '/Provisioning UDID/ {print $2}')"
         if [[ -n "$udid" ]] && ! /usr/libexec/PlistBuddy -c 'Print :ProvisionedDevices' "$plist" 2>/dev/null | grep -q "$udid"; then
-            echo "⚠︎ $(basename "$1") enthält diesen Mac ($udid) nicht – hier startet die App dann nicht."
+            echo "⚠︎ $(basename "$1") doesn’t include this Mac ($udid), so the app won’t start here."
         fi
     }
     check_profile "$APP_PROFILE" "$BUNDLE_ID" "com.apple.developer.system-extension.install"
@@ -147,15 +147,15 @@ if [[ $CAMERA_SIGNED == 1 ]]; then
     cp "$APP_PROFILE" "$APP/Contents/embedded.provisionprofile"
     codesign --force "${SIGN_ARGS[@]}" --timestamp=none --entitlements "$TMP_ENT/camera.entitlements" "$EXT"
     codesign --force "${SIGN_ARGS[@]}" --timestamp=none --entitlements "$TMP_ENT/app.entitlements" "$APP"
-    CAMERA_NOTE="Virtuelle Kamera: signiert für Team $TEAM_ID – nach /Programme kopieren und in der App aktivieren."
+    CAMERA_NOTE="Virtual camera: signed for team $TEAM_ID. Copy to /Applications and activate it in the app."
 else
     # Without a provisioning profile the restricted install entitlement would stop the app from
     # launching, so the extension is only bundled; activating it will be refused by macOS.
     codesign --force "${SIGN_ARGS[@]}" --timestamp=none --entitlements "$TMP_ENT/camera.entitlements" "$EXT"
     codesign --force "${SIGN_ARGS[@]}" --timestamp=none --entitlements Resources/DuoDisplay.entitlements "$APP"
-    CAMERA_NOTE="Virtuelle Kamera: nicht aktivierbar (braucht SIGN_IDENTITY, APP_PROFILE, CAMERA_PROFILE – siehe README). Ton und Mikrofon funktionieren."
+    CAMERA_NOTE="Virtual camera: unavailable (needs SIGN_IDENTITY, APP_PROFILE, CAMERA_PROFILE, see README). Sound and microphone work."
 fi
 
-echo "Signiert mit: $SIGNED_WITH"
+echo "Signed with: $SIGNED_WITH"
 echo "$CAMERA_NOTE"
-echo "Fertig: $(pwd)/$APP"
+echo "Done: $(pwd)/$APP"

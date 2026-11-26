@@ -17,7 +17,7 @@ enum VirtualCameraConfig {
 
 // MARK: - Sink (MacBook → camera extension)
 
-/// Talks to the "iMac-Kamera (DuoDisplay)" device published by the camera extension:
+/// Talks to the "iMac Camera (DuoDisplay)" device published by the camera extension:
 /// reads whether an app is using the camera and pushes decoded frames into its sink stream.
 final class VirtualCameraSink {
     private struct Sink {
@@ -272,7 +272,7 @@ final class CameraExtensionInstaller: NSObject, OSSystemExtensionRequestDelegate
                                                                  queue: .main)
         request.delegate = self
         OSSystemExtensionManager.shared.submitRequest(request)
-        onStatus?("Aktiviere Kamera-Erweiterung…", false)
+        onStatus?("Activating camera extension…", false)
     }
 
     func request(_ request: OSSystemExtensionRequest, actionForReplacingExtension existing: OSSystemExtensionProperties,
@@ -281,24 +281,24 @@ final class CameraExtensionInstaller: NSObject, OSSystemExtensionRequestDelegate
     }
 
     func requestNeedsUserApproval(_ request: OSSystemExtensionRequest) {
-        onStatus?("Bitte in Systemeinstellungen → Allgemein → Anmeldeobjekte & Erweiterungen → Kamera-Erweiterungen „DuoDisplay“ erlauben.", false)
+        onStatus?("Allow “DuoDisplay” in System Settings → General → Login Items & Extensions → Camera Extensions.", false)
     }
 
     func request(_ request: OSSystemExtensionRequest, didFinishWithResult result: OSSystemExtensionRequest.Result) {
         switch result {
-        case .completed: onStatus?("Kamera-Erweiterung ist aktiv.", true)
-        case .willCompleteAfterReboot: onStatus?("Kamera-Erweiterung wird nach einem Neustart aktiv.", false)
-        @unknown default: onStatus?("Kamera-Erweiterung: unbekanntes Ergebnis.", false)
+        case .completed: onStatus?("Camera extension is active.", true)
+        case .willCompleteAfterReboot: onStatus?("Camera extension becomes active after a restart.", false)
+        @unknown default: onStatus?("Camera extension: unknown result.", false)
         }
     }
 
     func request(_ request: OSSystemExtensionRequest, didFailWithError error: Error) {
         let nsError = error as NSError
-        var message = "Kamera-Erweiterung konnte nicht aktiviert werden: \(error.localizedDescription)"
+        var message = "Could not activate camera extension: \(error.localizedDescription)"
         if nsError.domain == OSSystemExtensionErrorDomain {
             switch OSSystemExtensionError.Code(rawValue: nsError.code) {
             case .missingEntitlement, .unsupportedParentBundleLocation, .codeSignatureInvalid, .validationFailed:
-                message += " – Die App muss mit einem Apple-Developer-Zertifikat und Provisioning-Profilen gebaut und in /Programme liegen (siehe README, „Virtuelle Kamera“)."
+                message += ". The app must be built with an Apple Developer certificate and provisioning profiles and live in /Applications (see README, “Virtual camera”)."
             default: break
             }
         }

@@ -3,8 +3,8 @@ import Network
 import AVFoundation
 import os
 
-/// MacBook side of camera + microphone: watches whether apps use the virtual "iMac-Kamera" /
-/// "iMac-Mikrofon", asks the iMac to send them only then, and feeds what arrives into the
+/// MacBook side of camera + microphone: watches whether apps use the virtual "iMac Camera" /
+/// "iMac Microphone", asks the iMac to send them only then, and feeds what arrives into the
 /// virtual devices. @Published state is mutated on the main thread.
 final class MediaHub: ObservableObject {
     @Published private(set) var cameraInstalled = false
@@ -103,7 +103,7 @@ final class MediaHub: ObservableObject {
             guard let self else { return }
             self.installingMic = false
             self.checkedMicVersion = false
-            self.micMessage = error ?? "Installiert. Das „iMac-Mikrofon (DuoDisplay)“ steht jetzt allen Apps zur Verfügung."
+            self.micMessage = error ?? "Installed. “iMac Microphone (DuoDisplay)” is now available to all apps."
             self.poll()
         }
     }
@@ -139,7 +139,7 @@ final class MediaHub: ObservableObject {
             if feeding {
                 cameraReceiver.requestReset()   // the iMac starts a new stream (frame ids from 1)
             } else {
-                cameraMessage = "Die virtuelle Kamera nimmt keine Bilder an (Kamera-Zugriff für DuoDisplay erlaubt?)."
+                cameraMessage = "The virtual camera doesn’t accept frames (is camera access allowed for DuoDisplay?)."
             }
         } else if !camera && feeding {
             cameraSink.stopFeeding()
@@ -254,7 +254,7 @@ final class MediaProvider: ObservableObject {
             case .notDetermined:
                 requestPermission(.video)
             default:
-                problems.append("Kamera-Zugriff ist auf dem iMac nicht erlaubt.")
+                problems.append("Camera access is not allowed on the iMac.")
             }
         } else if !cameraOn && camera.isRunning {
             camera.stop()
@@ -277,7 +277,7 @@ final class MediaProvider: ObservableObject {
             case .notDetermined:
                 requestPermission(.audio)
             default:
-                problems.append("Mikrofon-Zugriff ist auf dem iMac nicht erlaubt.")
+                problems.append("Microphone access is not allowed on the iMac.")
             }
         } else if !micOn && mic.isRunning {
             mic.stop()
@@ -287,7 +287,7 @@ final class MediaProvider: ObservableObject {
         }
 
         if !enabled && (wantCamera || wantMic) {
-            problems.append("Kamera und Mikrofon sind auf dem iMac nicht freigegeben.")
+            problems.append("Camera and microphone are not shared on the iMac.")
         }
         cameraActive = camera.isRunning
         micActive = mic.isRunning

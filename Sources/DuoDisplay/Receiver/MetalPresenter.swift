@@ -100,7 +100,7 @@ final class MetalPresenter {
             video.colorAttachments[0].pixelFormat = .bgra8Unorm
             videoPipeline = try device.makeRenderPipelineState(descriptor: video)
         } catch {
-            NSLog("DuoDisplay: Metal-Shader fehlgeschlagen: \(error)")
+            NSLog("DuoDisplay: Metal shader failed: \(error)")
             return nil
         }
         CVMetalTextureCacheCreate(kCFAllocatorDefault, nil, device, nil, &textureCache)

@@ -2,7 +2,7 @@ import Foundation
 
 /// Keeps macOS from putting this menu-bar app into App Nap while the two Macs are connected.
 /// Without it a windowless accessory app gets throttled (lower CPU/IO priority, coalesced timers),
-/// which delays forwarded input in "Normal nutzen" – there the iMac drives the MacBook over the
+/// which delays forwarded input in "Normal Use" – there the iMac drives the MacBook over the
 /// screen edge while neither app shows a window. Does not keep the Mac awake.
 final class LatencyActivity {
     private let reason: String

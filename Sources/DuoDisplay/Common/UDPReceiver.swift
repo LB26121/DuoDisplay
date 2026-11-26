@@ -27,7 +27,7 @@ final class UDPReceiver {
 
     func start() throws {
         let fd = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP)
-        guard fd >= 0 else { throw DDError("UDP-Socket konnte nicht erstellt werden (errno \(errno))") }
+        guard fd >= 0 else { throw DDError("Could not create UDP socket (errno \(errno))") }
 
         var no: Int32 = 0
         setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &no, socklen_t(MemoryLayout<Int32>.size))
@@ -49,7 +49,7 @@ final class UDPReceiver {
                 bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in6>.size))
             }
         }
-        guard bound == 0 else { close(fd); throw DDError("UDP-Port konnte nicht geöffnet werden (errno \(errno))") }
+        guard bound == 0 else { close(fd); throw DDError("Could not open UDP port (errno \(errno))") }
 
         var out = sockaddr_in6()
         var len = socklen_t(MemoryLayout<sockaddr_in6>.size)

@@ -22,7 +22,7 @@ final class SystemAudioTap {
 
     func start() throws {
         guard #available(macOS 14.2, *) else {
-            throw DDError("Ton-Übertragung braucht macOS 14.2 oder neuer auf dem MacBook.")
+            throw DDError("Sound transfer needs macOS 14.2 or later on the MacBook.")
         }
         stop()
 
@@ -39,17 +39,17 @@ final class SystemAudioTap {
         }
 
         let description = CATapDescription(stereoGlobalTapButExcludeProcesses: excluded)
-        description.name = "DuoDisplay Ton zum iMac"
+        description.name = "DuoDisplay Sound to iMac"
         description.isPrivate = true
         description.muteBehavior = .mutedWhenTapped
         var tap = AudioObjectID(kAudioObjectUnknown)
-        try CA.check(AudioHardwareCreateProcessTap(description, &tap), "Systemton-Abgriff erstellen")
+        try CA.check(AudioHardwareCreateProcessTap(description, &tap), "create system audio tap")
         tapID = tap
 
         guard let outputDevice = CA.defaultOutputDevice,
               let outputUID = CA.string(outputDevice, kAudioDevicePropertyDeviceUID) else {
             stop()
-            throw DDError("Kein Ausgabegerät gefunden")
+            throw DDError("No output device found")
         }
         let aggregate: [String: Any] = [
             kAudioAggregateDeviceNameKey: "DuoDisplay Tap",
@@ -64,7 +64,7 @@ final class SystemAudioTap {
         ]
         var agg = AudioObjectID(kAudioObjectUnknown)
         do {
-            try CA.check(AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &agg), "Aggregat-Gerät erstellen")
+            try CA.check(AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &agg), "create aggregate device")
         } catch {
             stop()
             throw error
@@ -83,7 +83,7 @@ final class SystemAudioTap {
               format.mFormatID == kAudioFormatLinearPCM, format.mFormatFlags & kAudioFormatFlagIsFloat != 0,
               format.mBitsPerChannel == 32 else {
             stop()
-            throw DDError("Unerwartetes Format des Systemton-Abgriffs")
+            throw DDError("Unexpected system audio tap format")
         }
         let rate = format.mSampleRate
         let channels = Int(format.mChannelsPerFrame)
@@ -116,13 +116,13 @@ final class SystemAudioTap {
         }
         guard status == noErr, let proc else {
             stop()
-            throw DDError("Systemton-Abgriff starten fehlgeschlagen (\(CA.fourCC(status)))")
+            throw DDError("Could not start system audio tap (\(CA.fourCC(status)))")
         }
         procID = proc
         let started = AudioDeviceStart(agg, proc)
         guard started == noErr else {
             stop()
-            throw DDError("Systemton-Abgriff starten fehlgeschlagen (\(CA.fourCC(started))) – bitte unter Systemeinstellungen → Datenschutz & Sicherheit → Bildschirm- & Systemaudioaufnahme DuoDisplay erlauben.")
+            throw DDError("Could not start system audio tap (\(CA.fourCC(started))). Allow DuoDisplay in System Settings → Privacy & Security → Screen & System Audio Recording.")
         }
     }
 

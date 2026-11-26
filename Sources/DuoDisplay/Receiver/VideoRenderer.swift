@@ -58,7 +58,7 @@ final class VideoRenderer {
     var waitingForKeyframe: Bool { gate.waitingForKeyframe }
 
     init() {
-        guard let presenter = MetalPresenter() else { fatalError("Metal ist auf diesem Mac nicht verfügbar") }
+        guard let presenter = MetalPresenter() else { fatalError("Metal is not available on this Mac") }
         self.presenter = presenter
     }
 

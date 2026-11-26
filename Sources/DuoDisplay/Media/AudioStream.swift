@@ -370,21 +370,21 @@ final class AudioPlayer {
     private func makeUnit(rate: Double) throws -> AudioUnit {
         var deviceID: AudioObjectID?
         if let deviceUID {
-            guard let id = CA.device(uid: deviceUID) else { throw DDError("Audiogerät „\(deviceUID)“ nicht gefunden") }
+            guard let id = CA.device(uid: deviceUID) else { throw DDError("Audio device “\(deviceUID)” not found") }
             deviceID = id
         }
         var desc = AudioComponentDescription(
             componentType: kAudioUnitType_Output,
             componentSubType: deviceID == nil ? kAudioUnitSubType_DefaultOutput : kAudioUnitSubType_HALOutput,
             componentManufacturer: kAudioUnitManufacturer_Apple, componentFlags: 0, componentFlagsMask: 0)
-        guard let component = AudioComponentFindNext(nil, &desc) else { throw DDError("Keine Audio-Ausgabe verfügbar") }
+        guard let component = AudioComponentFindNext(nil, &desc) else { throw DDError("No audio output available") }
         var created: AudioUnit?
-        try CA.check(AudioComponentInstanceNew(component, &created), "Audio-Ausgabe erstellen")
-        guard let unit = created else { throw DDError("Audio-Ausgabe erstellen fehlgeschlagen") }
+        try CA.check(AudioComponentInstanceNew(component, &created), "create audio output")
+        guard let unit = created else { throw DDError("Could not create audio output") }
         do {
             if var deviceID {
                 try CA.check(AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0,
-                                                  &deviceID, UInt32(MemoryLayout<AudioObjectID>.size)), "Audiogerät wählen")
+                                                  &deviceID, UInt32(MemoryLayout<AudioObjectID>.size)), "select audio device")
             }
             let ch = UInt32(outputChannels)
             var format = AudioStreamBasicDescription(
@@ -401,8 +401,8 @@ final class AudioPlayer {
             var frames: UInt32 = 256   // ~5 ms IO buffer
             AudioUnitSetProperty(unit, kAudioDevicePropertyBufferFrameSize, kAudioUnitScope_Global, 0,
                                  &frames, UInt32(MemoryLayout<UInt32>.size))
-            try CA.check(AudioUnitInitialize(unit), "Audio-Ausgabe initialisieren")
-            try CA.check(AudioOutputUnitStart(unit), "Audio-Ausgabe starten")
+            try CA.check(AudioUnitInitialize(unit), "initialize audio output")
+            try CA.check(AudioOutputUnitStart(unit), "start audio output")
         } catch {
             AudioComponentInstanceDispose(unit)
             throw error

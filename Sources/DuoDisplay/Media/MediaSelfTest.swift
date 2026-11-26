@@ -7,7 +7,7 @@ import os
 /// `--mediatest`: audio and camera transport on this Mac, without real devices or permissions.
 enum MediaSelfTest {
     static func run() -> Bool {
-        print("DuoDisplay Medien-Selbsttest\n")
+        print("DuoDisplay media self-test\n")
         var ok = true
         ok = audioPackets() && ok
         ok = foreignPackets() && ok
@@ -17,7 +17,7 @@ enum MediaSelfTest {
         ok = camera(width: 1280, height: 720) && ok
         ok = player() && ok
         ok = environment() && ok
-        print(ok ? "\nERGEBNIS: OK" : "\nERGEBNIS: FEHLER")
+        print(ok ? "\nRESULT: OK" : "\nRESULT: FAILED")
         return ok
     }
 
@@ -28,7 +28,7 @@ enum MediaSelfTest {
 
     /// Sine → AudioSender → UDP loopback → same samples, sequence without gaps.
     private static func audioPackets() -> Bool {
-        print("▶︎ Audio-Pakete (48 kHz Stereo, Loopback)")
+        print("▶︎ Audio packets (48 kHz stereo, loopback)")
         let receiver = UDPReceiver()
         do { try receiver.start() } catch { print("  UDP: \(error)"); return false }
         let key = SymmetricKey(size: .bits256)
@@ -76,17 +76,17 @@ enum MediaSelfTest {
             maxError = max(maxError, abs(Float(s) / 32767 - source[i]))
         }
         var ok = true
-        print("  \(g.packets) Pakete, \(g.samples.count / 2) Frames, Format \(g.rate) Hz / \(g.channels) Kanäle")
-        ok = check("alle 5-ms-Pakete angekommen (200)", g.packets == 200) && ok
-        ok = check("keine Lücken in der Sequenz", g.gaps == 0) && ok
-        ok = check("Abtastwerte stimmen (max. Abweichung \(String(format: "%.5f", maxError)))", maxError < 0.0002) && ok
+        print("  \(g.packets) packets, \(g.samples.count / 2) frames, format \(g.rate) Hz / \(g.channels) channels")
+        ok = check("all 5 ms packets arrived (200)", g.packets == 200) && ok
+        ok = check("no gaps in the sequence", g.gaps == 0) && ok
+        ok = check("samples match (max. deviation \(String(format: "%.5f", maxError)))", maxError < 0.0002) && ok
         return ok
     }
 
     /// Someone else on the network sends to the UDP port: plain datagrams in the old format, sealed
     /// ones with another key, and the right ones again (replay). None may reach the streams.
     private static func foreignPackets() -> Bool {
-        print("▶︎ Fremde Pakete an den UDP-Port (Loopback)")
+        print("▶︎ Foreign packets to the UDP port (loopback)")
         let receiver = UDPReceiver()
         do { try receiver.start() } catch { print("  UDP: \(error)"); return false }
         let delivered = OSAllocatedUnfairLock(initialState: 0)
@@ -112,23 +112,23 @@ enum MediaSelfTest {
                                         interface: nil, sealer: right, magic: DD.cameraMagic)
         var chunks = 0
         let n = count { chunks = rightVideo.send(frame); sendRaw(right.seal(magic: AudioPacket.magic, sound)!, to: receiver.port) }
-        ok = check("mit dem Schlüssel der Verbindung: alles kommt an (\(n) von \(chunks + 1) Paketen)", chunks > 1 && n == chunks + 1) && ok
+        ok = check("with the connection key: everything arrives (\(n) of \(chunks + 1) packets)", chunks > 1 && n == chunks + 1) && ok
 
         let wrongVideo = UDPVideoSender(host: "127.0.0.1", port: receiver.port, session: 1, datagramSize: 1_200,
                                         interface: nil, sealer: MediaSealer(key: SymmetricKey(size: .bits256)), magic: DD.cameraMagic)
-        ok = check("anderer Schlüssel: nichts kommt an",
+        ok = check("other key: nothing arrives",
                    count { wrongVideo.send(frame); sendRaw(MediaSealer(key: SymmetricKey(size: .bits256)).seal(magic: AudioPacket.magic, sound)!, to: receiver.port) } == 0) && ok
-        ok = check("unverschlüsselt (altes Format): nichts kommt an", count { sendRaw(plainSound, to: receiver.port) } == 0) && ok
+        ok = check("unencrypted (old format): nothing arrives", count { sendRaw(plainSound, to: receiver.port) } == 0) && ok
 
         let sealed = right.seal(magic: AudioPacket.magic, sound)!
         _ = count { sendRaw(sealed, to: receiver.port) }
-        ok = check("abgefangenes Paket noch einmal gesendet: abgelehnt", count { sendRaw(sealed, to: receiver.port) } == 0) && ok
+        ok = check("intercepted packet resent: rejected", count { sendRaw(sealed, to: receiver.port) } == 0) && ok
         var swapped = right.seal(magic: AudioPacket.magic, sound)!
         swapped[0] = DD.magic
-        ok = check("Paketart umgeschrieben: abgelehnt", count { sendRaw(swapped, to: receiver.port) } == 0) && ok
+        ok = check("packet kind rewritten: rejected", count { sendRaw(swapped, to: receiver.port) } == 0) && ok
 
         receiver.setOpener(nil)
-        ok = check("ohne Verbindung: nichts kommt an",
+        ok = check("without connection: nothing arrives",
                    count { rightVideo.send(frame); sendRaw(right.seal(magic: AudioPacket.magic, sound)!, to: receiver.port) } == 0) && ok
         receiver.stop()
         rightVideo.cancel()
@@ -157,7 +157,7 @@ enum MediaSelfTest {
 
     /// The two Macs' clocks drift apart: the buffer must stay near its target without underruns.
     private static func jitterDrift(senderPpm: Double) -> Bool {
-        print("▶︎ Jitter-Puffer, Taktabweichung \(senderPpm > 0 ? "+" : "")\(Int(senderPpm)) ppm, 10 Minuten simuliert")
+        print("▶︎ Jitter buffer, clock drift \(senderPpm > 0 ? "+" : "")\(Int(senderPpm)) ppm, 10 minutes simulated")
         let rate = 48_000.0
         let buffer = AudioJitterBuffer(channels: 2, sampleRate: rate, targetMs: 20)
         let senderRate = rate * (1 + senderPpm / 1_000_000)
@@ -187,16 +187,16 @@ enum MediaSelfTest {
             }
         }
         let toMs = { (frames: Int) in Double(frames) * 1000 / rate }
-        print(String(format: "  Füllstand %.1f–%.1f ms (Ziel 20 ms), %d Korrekturen", toMs(minLevel), toMs(maxLevel), buffer.adjustments))
+        print(String(format: "  fill level %.1f–%.1f ms (target 20 ms), %d corrections", toMs(minLevel), toMs(maxLevel), buffer.adjustments))
         var ok = true
-        ok = check("keine Aussetzer", underrunsAfterStart == 0) && ok
-        ok = check("Latenz bleibt unter 45 ms", toMs(maxLevel) < 45) && ok
+        ok = check("no dropouts", underrunsAfterStart == 0) && ok
+        ok = check("latency stays below 45 ms", toMs(maxLevel) < 45) && ok
         return ok
     }
 
     /// Camera path: NV12 frames → HEVC → UDP (camera magic) → reassembly → decode to 1080p BGRA.
     private static func camera(width: Int, height: Int) -> Bool {
-        print("▶︎ Kamera \(width)×\(height) → HEVC → UDP → 1920×1080 BGRA")
+        print("▶︎ Camera \(width)×\(height) → HEVC → UDP → 1920×1080 BGRA")
         let receiver = UDPReceiver()
         do { try receiver.start() } catch { print("  UDP: \(error)"); return false }
         let stream = CameraStreamReceiver()
@@ -250,15 +250,15 @@ enum MediaSelfTest {
 
         let r = result.withLock { $0 }
         var ok = true
-        print("  \(r.frames)/\(total) Bilder dekodiert, Keyframe-Anfragen: \(r.keyRequests)")
-        ok = check("alle Bilder angekommen und dekodiert", r.frames == total) && ok
-        ok = check("Ausgabe 1920×1080 BGRA (Format der virtuellen Kamera)", r.sizeOK && r.format == kCVPixelFormatType_32BGRA) && ok
+        print("  \(r.frames)/\(total) frames decoded, keyframe requests: \(r.keyRequests)")
+        ok = check("all frames arrived and decoded", r.frames == total) && ok
+        ok = check("output 1920×1080 BGRA (virtual camera format)", r.sizeOK && r.format == kCVPixelFormatType_32BGRA) && ok
         return ok
     }
 
     /// Real output device: silent packets for 1.5 s – the output unit must start and drain the buffer.
     private static func player() -> Bool {
-        print("▶︎ Wiedergabe über das Standard-Ausgabegerät (Stille, 1,5 s)")
+        print("▶︎ Playback on the default output device (silence, 1.5 s)")
         let player = AudioPlayer(kind: .systemAudio, outputChannels: 2, targetMs: 20)
         let errors = OSAllocatedUnfairLock(initialState: [String]())
         player.onError = { e in errors.withLock { $0.append(e) } }
@@ -279,26 +279,26 @@ enum MediaSelfTest {
         Thread.sleep(forTimeInterval: 0.1)
         let e = errors.withLock { $0 }
         let maxMs = Double(levels.max() ?? 0) / 48
-        print(String(format: "  Füllstand max. %.1f ms", maxMs) + (e.isEmpty ? "" : " · Fehler: \(e.joined(separator: ", "))"))
-        var ok = check("Ausgabe gestartet, keine Fehler", e.isEmpty && !levels.isEmpty)
+        print(String(format: "  fill level max. %.1f ms", maxMs) + (e.isEmpty ? "" : " · errors: \(e.joined(separator: ", "))"))
+        var ok = check("output started, no errors", e.isEmpty && !levels.isEmpty)
         // Sleep() jitter makes this loose; a stuck output would grow towards 1 s.
-        ok = check("Ausgabe verbraucht den Puffer (bleibt unter 120 ms)", maxMs < 120) && ok
+        ok = check("output drains the buffer (stays below 120 ms)", maxMs < 120) && ok
         return ok
     }
 
     /// Prerequisites on this Mac that can be checked without asking for permissions.
     private static func environment() -> Bool {
-        print("▶︎ Umgebung")
+        print("▶︎ Environment")
         var pid = getpid()
         var object = AudioObjectID(kAudioObjectUnknown)
         var size = UInt32(MemoryLayout<AudioObjectID>.size)
         var addr = CA.address(kAudioHardwarePropertyTranslatePIDToProcessObject)
         let status = AudioObjectGetPropertyData(CA.system, &addr, UInt32(MemoryLayout<pid_t>.size), &pid, &size, &object)
-        var ok = check("eigener Prozess ist für den Ton-Abgriff ausschließbar (Core-Audio-Objekt \(object))",
+        var ok = check("own process can be excluded from the audio tap (Core Audio object \(object))",
                        status == noErr && object != kAudioObjectUnknown)
-        ok = check("Ton-Abgriff verfügbar (macOS 14.2+)", SystemAudioTap.isSupported) && ok
-        print("  ℹ︎ virtuelles Mikrofon installiert: \(VirtualMic.device != nil ? "ja" : "nein")")
-        print("  ℹ︎ Kamera: \(CameraCapture.preferredDevice()?.localizedName ?? "keine")")
+        ok = check("audio tap available (macOS 14.2+)", SystemAudioTap.isSupported) && ok
+        print("  ℹ︎ virtual microphone installed: \(VirtualMic.device != nil ? "yes" : "no")")
+        print("  ℹ︎ camera: \(CameraCapture.preferredDevice()?.localizedName ?? "none")")
         return ok
     }
 }

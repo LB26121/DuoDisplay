@@ -24,12 +24,12 @@ final class PairingPrompt: NSObject, ObservableObject, NSWindowDelegate {
         let interface = connection.currentPath?.availableInterfaces.first
         let via: String
         switch interface?.type {
-        case .wifi?: via = "über WLAN"
-        case .wiredEthernet?: via = "über Ethernet"
-        default: via = "über ein anderes Netzwerk"
+        case .wifi?: via = "Wi-Fi"
+        case .wiredEthernet?: via = "Ethernet"
+        default: via = "another network"
         }
         let name = interface.map { " (\($0.name))" } ?? ""
-        return "Achtung: Diese Anfrage kommt nicht über das Thunderbolt-Kabel, sondern \(via)\(name). Nur koppeln, wenn du die Verbindung gerade selbst gestartet hast."
+        return "Warning: this request comes over \(via)\(name), not the Thunderbolt cable. Only pair if you just started the connection yourself."
     }
 
     func show(code: String, peerName: String, note: String?, onConfirm: @escaping () -> Void, onCancel: @escaping () -> Void) {
@@ -44,7 +44,7 @@ final class PairingPrompt: NSObject, ObservableObject, NSWindowDelegate {
         let hosting = NSHostingView(rootView: PairingPromptView(prompt: self))
         let panel = NSPanel(contentRect: CGRect(origin: .zero, size: hosting.fittingSize),
                             styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
-        panel.title = "DuoDisplay – Macs koppeln"
+        panel.title = "DuoDisplay – Pair Macs"
         // Modern dialog look: content runs under a transparent title bar, no separator line.
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
@@ -101,14 +101,14 @@ struct PairingPromptView: View {
         VStack(spacing: 18) {
             VStack(spacing: 10) {
                 SymbolTile(systemName: "lock.shield.fill", color: .blue, size: 52)
-                Text("Mit „\(prompt.peerName)“ koppeln?")
+                Text("Pair with “\(prompt.peerName)”?")
                     .font(.title3.weight(.semibold))
                     .multilineTextAlignment(.center)
             }
 
             CodeDigits(code: prompt.code)
 
-            Text("Nur bestätigen, wenn der andere Mac genau diesen Code zeigt und du dort gerade die Verbindung gestartet hast. Danach auf beiden Macs „Koppeln“ klicken.")
+            Text("Only confirm if the other Mac shows exactly this code and you just started the connection there. Then click “Pair” on both Macs.")
                 .font(.callout).foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -129,18 +129,18 @@ struct PairingPromptView: View {
                 if prompt.waiting {
                     HStack(spacing: 8) {
                         ProgressView().controlSize(.small)
-                        Text("Warte auf den anderen Mac…").foregroundStyle(.secondary)
+                        Text("Waiting for the other Mac…").foregroundStyle(.secondary)
                     }
                     .frame(height: 28)
                 } else {
-                    // "Koppeln" deliberately has no Return shortcut: pairing should be a conscious click.
+                    // "Pair" deliberately has no Return shortcut: pairing should be a conscious click.
                     HStack(spacing: 10) {
                         Button(role: .cancel) { prompt.cancel() } label: {
-                            Text("Abbrechen").frame(maxWidth: .infinity)
+                            Text("Cancel").frame(maxWidth: .infinity)
                         }
                         .keyboardShortcut(.cancelAction)
                         Button { prompt.confirm() } label: {
-                            Text("Koppeln").frame(maxWidth: .infinity)
+                            Text("Pair").frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
                     }

@@ -238,15 +238,15 @@ struct KeyCombo: View {
             switch c {
             case "⌃": return "Control "
             case "⌥": return "Option "
-            case "⌘": return "Befehl "
-            case "⇧": return "Umschalt "
+            case "⌘": return "Command "
+            case "⇧": return "Shift "
             default: return String(c)
             }
         }.joined()
     }
 }
 
-/// "Umschalten jederzeit mit ⌃⌥⌘D" with the shortcut as a key cap.
+/// "Switch anytime with ⌃⌥⌘D" with the shortcut as a key cap.
 struct ShortcutHint: View {
     let text: String
     let keys: String

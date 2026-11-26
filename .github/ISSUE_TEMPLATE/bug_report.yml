@@ -5,8 +5,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting! Security problems please **not** here, but via
-        *Security → Report a vulnerability* (see SECURITY.md).
+        Thanks for reporting! Report security problems **privately** via
+        *Security → Report a vulnerability* (see SECURITY.md), not here.
   - type: textarea
     id: what
     attributes:
@@ -27,8 +27,8 @@ body:
     attributes:
       label: Mode
       options:
-        - Second display (Zweiter Bildschirm)
-        - Normal use with edge switch (Normal nutzen)
+        - Second display
+        - Normal use / edge switch
         - Picture-in-picture
         - Pairing / connecting
         - Sound, camera or microphone
@@ -77,6 +77,6 @@ body:
     attributes:
       label: Logs
       description: |
-        Output of this command on both Macs, right after the problem occurred:
+        Run on both Macs right after the problem:
         `log show --last 10m --predicate 'subsystem == "local.duodisplay"' --style compact`
       render: text

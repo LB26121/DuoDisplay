@@ -29,19 +29,19 @@ final class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
 
     func start(host: NWEndpoint.Host, port: UInt16, interface: NWInterface?, datagramSize: Int, sealer: MediaSealer) throws {
         stop()
-        guard let device = Self.preferredDevice() else { throw DDError("Keine Kamera gefunden") }
+        guard let device = Self.preferredDevice() else { throw DDError("No camera found") }
         let session = AVCaptureSession()
         session.beginConfiguration()
         session.sessionPreset = session.canSetSessionPreset(.hd1920x1080) ? .hd1920x1080 : .high
         let input = try AVCaptureDeviceInput(device: device)
-        guard session.canAddInput(input) else { throw DDError("Kamera kann nicht verwendet werden") }
+        guard session.canAddInput(input) else { throw DDError("Camera cannot be used") }
         session.addInput(input)
 
         let output = AVCaptureVideoDataOutput()
         output.alwaysDiscardsLateVideoFrames = true
         output.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange]
         output.setSampleBufferDelegate(self, queue: queue)
-        guard session.canAddOutput(output) else { throw DDError("Kamerabild kann nicht gelesen werden") }
+        guard session.canAddOutput(output) else { throw DDError("Cannot read camera frames") }
         session.addOutput(output)
         session.commitConfiguration()
 
@@ -63,7 +63,7 @@ final class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
         }
         observers = [NotificationCenter.default.addObserver(forName: AVCaptureSession.runtimeErrorNotification, object: session, queue: .main) { [weak self] note in
             let error = note.userInfo?[AVCaptureSessionErrorKey] as? Error
-            self?.onError?("Kamera: \(error?.localizedDescription ?? "Fehler")")
+            self?.onError?("Camera: \(error?.localizedDescription ?? "error")")
         }]
         self.session = session
         queue.async { session.startRunning() }

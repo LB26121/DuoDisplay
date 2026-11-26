@@ -39,10 +39,10 @@ enum SenderDefaults {
 extension SenderSession {
     /// One-line status for the window header and the menu bar menu.
     var statusText: String {
-        guard let name = connectedName else { return "Nicht verbunden" }
-        if case .pairing = phase { return "Code auf beiden Macs bestätigen…" }
-        if !isConnected { return "Verbinde mit \(name)…" }
-        return mode == .display ? "\(name) ist zweiter Bildschirm" : "\(name) wird normal genutzt"
+        guard let name = connectedName else { return "Not connected" }
+        if case .pairing = phase { return "Confirm the code on both Macs…" }
+        if !isConnected { return "Connecting to \(name)…" }
+        return mode == .display ? "\(name) is a second display" : "\(name) in normal use"
     }
 
     var statusTone: StatusTone {
@@ -73,7 +73,7 @@ struct SenderView: View {
     var body: some View {
         VStack(spacing: 0) {
             PageHeader(symbol: "macbook",
-                       title: "Bildschirm erweitern",
+                       title: "Extend Display",
                        status: session.statusText,
                        tone: session.statusTone)
                 .padding(.horizontal, 28)
@@ -85,17 +85,17 @@ struct SenderView: View {
                 RequirementsSection(
                     links: session.thunderboltLinks,
                     pairedName: session.pairedName,
-                    unpairedText: "Beim ersten „Verbinden“ zeigen beide Macs denselben 6-stelligen Code – auf beiden „Koppeln“ klicken. Danach verbindet sich dieses MacBook nur noch mit diesem Mac.",
+                    unpairedText: "On the first “Connect”, both Macs show the same 6-digit code. Click “Pair” on both. This MacBook then connects only to that Mac.",
                     accessibilityGranted: session.accessibilityGranted,
-                    accessibilityText: "Nötig, damit Tastatur und Trackpad des anderen Macs hier tippen, klicken, scrollen und Gesten ausführen können.",
+                    accessibilityText: "Lets the other Mac’s keyboard and trackpad type, click, scroll and use gestures here.",
                     onForget: { session.forgetPairing() })
                 MediaSection(media: session.media, systemAudio: $systemAudio, audioLine: session.audioLine)
                 arrangementSection
                 qualitySection
                 advancedSection
-                RoleSection(symbol: "macbook", title: "Bildschirm erweitern",
-                            detail: "Dieser Mac bekommt den zusätzlichen Bildschirm.",
-                            disabledReason: session.isBusy ? "Zum Ändern zuerst die Verbindung trennen." : nil,
+                RoleSection(symbol: "macbook", title: "Extend Display",
+                            detail: "This Mac gets the extra display.",
+                            disabledReason: session.isBusy ? "Disconnect first to change this." : nil,
                             onChange: onBack)
             }
             .formStyle(.grouped)
@@ -120,14 +120,14 @@ struct SenderView: View {
 
     private var modeSection: some View {
         Section {
-            Picker("Modus", selection: Binding(get: { session.mode }, set: { session.setMode($0) })) {
-                Text("Zweiter Bildschirm").tag(LinkMode.display)
-                Text("Normal nutzen").tag(LinkMode.local)
+            Picker("Mode", selection: Binding(get: { session.mode }, set: { session.setMode($0) })) {
+                Text("Second Display").tag(LinkMode.display)
+                Text("Normal Use").tag(LinkMode.local)
             }
             .pickerStyle(.segmented)
 
             if session.mode == .local && session.edgeActive {
-                Label("Maus und Tastatur des iMac steuern gerade dieses MacBook", systemImage: "cursorarrow.motionlines")
+                Label("The iMac’s mouse and keyboard are controlling this MacBook", systemImage: "cursorarrow.motionlines")
                     .foregroundStyle(.green)
                     .transition(.opacity)
             }
@@ -139,7 +139,7 @@ struct SenderView: View {
                     if session.statsLine.isEmpty {
                         HStack(spacing: 6) {
                             ProgressView().controlSize(.small)
-                            Text(session.streaming ? "Messe…" : "Starte Bildschirm…")
+                            Text(session.streaming ? "Measuring…" : "Starting display…")
                                 .font(.callout).foregroundStyle(.secondary)
                         }
                     } else {
@@ -149,25 +149,25 @@ struct SenderView: View {
                 .transition(.opacity)
             }
         } header: {
-            Text("Gekoppelt mit \(session.connectedName ?? "")")
+            Text("Paired with \(session.connectedName ?? "")")
         } footer: {
             VStack(alignment: .leading, spacing: 4) {
-                ShortcutHint(text: "Umschalten jederzeit mit", keys: GlobalHotKey.label, trailing: "– auf beiden Macs.")
-                ShortcutHint(text: "Bild-in-Bild auf dem iMac:", keys: GlobalHotKey.pipLabel)
+                ShortcutHint(text: "Switch anytime with", keys: GlobalHotKey.label, trailing: "on either Mac.")
+                ShortcutHint(text: "Picture-in-picture on the iMac:", keys: GlobalHotKey.pipLabel)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
     private var receiversSection: some View {
-        Section("Verfügbare Macs") {
+        Section("Available Macs") {
             if case .failed(let message) = session.phase {
                 NoticeRow(text: message, tone: .error)
             }
             if session.receivers.isEmpty {
                 HStack(spacing: 10) {
                     ProgressView().controlSize(.small)
-                    Text("Suche Macs, auf denen DuoDisplay als Bildschirm läuft…")
+                    Text("Looking for Macs running DuoDisplay as a display…")
                         .foregroundStyle(.secondary)
                 }
                 .padding(.vertical, 4)
@@ -179,21 +179,21 @@ struct SenderView: View {
     private var arrangementSection: some View {
         Section {
             Picker(selection: $receiverRight) {
-                Text("Links").tag(false)
-                Text("Rechts").tag(true)
+                Text("Left").tag(false)
+                Text("Right").tag(true)
             } label: {
-                Text("Der iMac steht")
-                Text("vom MacBook aus gesehen")
+                Text("iMac position")
+                Text("Seen from the MacBook")
             }
             .pickerStyle(.segmented)
             .fixedSize()
 
             Toggle(isOn: $edgeSwitch) {
-                Text("Über den Bildschirmrand wechseln")
-                Text("Im Modus „Normal nutzen“: Zeiger am \(receiverRight ? "linken" : "rechten") Rand des iMac weiterschieben – dann steuern Maus, Trackpad und Tastatur des iMac dieses MacBook. Am \(receiverRight ? "rechten" : "linken") Rand des MacBook geht es zurück, \(GlobalHotKey.label) auf dem iMac holt die Eingaben jederzeit zurück. Universal Control dafür am besten ausschalten.")
+                Text("Switch at the screen edge")
+                Text("In Normal Use, push the pointer past the iMac’s \(receiverRight ? "left" : "right") edge to control this MacBook. Go back via the MacBook’s \(receiverRight ? "right" : "left") edge or \(GlobalHotKey.label) on the iMac. Best with Universal Control off.")
             }
         } header: {
-            Text("Anordnung & Steuerung")
+            Text("Arrangement & Control")
         }
     }
 
@@ -211,40 +211,40 @@ struct SenderView: View {
             Picker(selection: $qualityRaw) {
                 ForEach(StreamQuality.allCases) { Text(Self.shortName($0)).tag($0.rawValue) }
             } label: {
-                Text("Auflösung")
+                Text("Resolution")
                 Text(Self.qualityDescription(StreamQuality(rawValue: qualityRaw) ?? .retina))
             }
 
             Toggle(isOn: $autoReduce) {
-                Text("Bei Überlastung automatisch reduzieren")
+                Text("Reduce automatically when overloaded")
                 Text(autoReduce
-                     ? "Wenn der Encoder nicht hinterherkommt, wird nur der Videostream kleiner – der zweite Bildschirm bleibt gleich scharf eingerichtet."
-                     : "Die gewählte Auflösung bleibt fest, auch wenn dadurch Bilder ausfallen.")
+                     ? "If the encoder can’t keep up, only the video stream gets smaller. The display itself stays sharp."
+                     : "The resolution stays fixed, even if frames drop.")
             }
             Toggle(isOn: $autoRestore) {
-                Text("Danach wieder erhöhen")
-                Text("Sobald genug Reserve da ist.")
+                Text("Raise again afterwards")
+                Text("Once there is enough headroom.")
             }
             .disabled(!autoReduce)
 
             Picker(selection: $fps) {
-                Text("Wie der iMac").tag(0)
+                Text("Match iMac").tag(0)
                 Text("120 Hz").tag(120)
                 Text("60 Hz").tag(60)
             } label: {
-                Text("Bildrate")
-                Text(fps == 120 ? "Doppelte Last für das MacBook." : (fps == 0 ? "Empfohlen – folgt der Bildwiederholrate des iMac." : "Feste 60 Bilder pro Sekunde."))
+                Text("Frame Rate")
+                Text(fps == 120 ? "Doubles the MacBook’s workload." : (fps == 0 ? "Recommended. Follows the iMac’s refresh rate." : "Fixed 60 frames per second."))
             }
         } header: {
-            Text("Bildqualität")
+            Text("Image Quality")
         } footer: {
-            Text("Änderungen gelten sofort. Der Stream startet dabei kurz neu, der zweite Bildschirm und seine Fenster bleiben, wo sie sind.")
+            Text("Changes apply immediately. The stream restarts briefly; the display and its windows stay put.")
                 .footerText()
         }
     }
 
     private var advancedSection: some View {
-        Section("Erweitert") {
+        Section("Advanced") {
             LabeledContent {
                 HStack(spacing: 10) {
                     Slider(value: $bitrate, in: 20...400, step: 10)
@@ -259,16 +259,16 @@ struct SenderView: View {
             } label: {
                 Text("Bitrate")
                 Text(isProRes
-                     ? "Bei ProRes ergibt sich die Datenrate aus dem Bildinhalt – gilt nur, falls HEVC einspringt."
-                     : "Über Thunderbolt sind hohe Werte unproblematisch.")
+                     ? "ProRes sets its own data rate. Only used if HEVC takes over."
+                     : "High values are fine over Thunderbolt.")
             }
             Toggle(isOn: $localCursor) {
-                Text("Mauszeiger lokal zeichnen")
-                Text("Der Zeiger erscheint ohne Video-Verzögerung.")
+                Text("Draw pointer locally")
+                Text("The pointer moves without video delay.")
             }
             Toggle(isOn: $thunderboltOnly) {
-                Text("Nur über Thunderbolt verbinden")
-                Text("Macs, die nur per WLAN oder Ethernet erreichbar sind, lassen sich dann nicht verbinden.")
+                Text("Connect over Thunderbolt only")
+                Text("Macs reachable only via Wi-Fi or Ethernet can’t connect.")
             }
         }
     }
@@ -286,7 +286,7 @@ struct SenderView: View {
                     Label("Thunderbolt (\(tb.name))", systemImage: "bolt.fill")
                         .font(.callout).foregroundStyle(.green)
                 } else {
-                    Label("Kein Thunderbolt – nur \(receiver.otherInterfaces.joined(separator: ", "))", systemImage: "wifi")
+                    Label("No Thunderbolt, only \(receiver.otherInterfaces.joined(separator: ", "))", systemImage: "wifi")
                         .font(.callout).foregroundStyle(.orange)
                 }
             }
@@ -294,17 +294,17 @@ struct SenderView: View {
             Group {
                 if session.connectedName == receiver.name {
                     if session.isConnected {
-                        Button("Trennen") { session.disconnect() }
+                        Button("Disconnect") { session.disconnect() }
                     } else if case .pairing = session.phase {
-                        Text("Code bestätigen…").font(.callout).foregroundStyle(.secondary)
+                        Text("Confirm code…").font(.callout).foregroundStyle(.secondary)
                     } else {
                         ProgressView().controlSize(.small)
                     }
                 } else {
-                    Button("Verbinden") { session.connect(to: receiver) }
+                    Button("Connect") { session.connect(to: receiver) }
                         .buttonStyle(.borderedProminent)
                         .disabled(!reachable || session.isBusy)
-                        .help(reachable ? "Mit \(receiver.name) verbinden" : "Nur über Thunderbolt erlaubt (siehe „Erweitert“)")
+                        .help(reachable ? "Connect to \(receiver.name)" : "Thunderbolt only (see Advanced)")
                 }
             }
             .transition(.opacity)
@@ -317,27 +317,27 @@ struct SenderView: View {
     private var codecDescription: String {
         switch VideoCodec(rawValue: UInt8(codecRaw)) ?? .prores {
         case .prores:
-            return "Geringste Verzögerung: etwa halb so viel Zeit fürs Kodieren wie HEVC, jedes Bild steht für sich. Braucht rund 250–600 Mbit/s – ohne Thunderbolt oder ProRes-Hardware nimmt DuoDisplay automatisch HEVC. Am besten mit MTU „Jumbo (9000)“ auf beiden Macs."
+            return "Lowest latency: half the encode time of HEVC. Needs ~250–600 Mbit/s; without Thunderbolt or ProRes hardware, DuoDisplay uses HEVC. Best with MTU “Jumbo (9000)” on both Macs."
         case .hevc:
-            return "Wenig Daten, funktioniert auch ohne Thunderbolt."
+            return "Little data, works without Thunderbolt."
         case .h264:
-            return "Für ältere Macs."
+            return "For older Macs."
         }
     }
 
     private static func shortName(_ quality: StreamQuality) -> String {
         switch quality {
         case .retina: return "Retina (2×)"
-        case .balanced: return "Ausgewogen (1,5×)"
-        case .fast: return "Schnell (1×)"
+        case .balanced: return "Balanced (1.5×)"
+        case .fast: return "Fast (1×)"
         }
     }
 
     private static func qualityDescription(_ quality: StreamQuality) -> String {
         switch quality {
-        case .retina: return "Volle Retina-Pixel – gestochen scharf."
-        case .balanced: return "Retina-Oberfläche, gestreamt mit 1,5× – ca. 3 ms schneller."
-        case .fast: return "Ohne HiDPI – minimale Latenz."
+        case .retina: return "Full Retina pixels, razor sharp."
+        case .balanced: return "Retina UI streamed at 1.5×, ~3 ms faster."
+        case .fast: return "No HiDPI, minimal latency."
         }
     }
 }
@@ -351,33 +351,33 @@ struct MediaSection: View {
     var body: some View {
         Section {
             Toggle(isOn: $systemAudio) {
-                Text("Ton über den iMac abspielen")
+                Text("Play sound on the iMac")
                 Text(audioLine.isEmpty
-                     ? "Im Bildschirm-Modus ist das MacBook dann stumm, alles klingt aus den iMac-Lautsprechern. Braucht die Freigabe „Bildschirm- & Systemaudioaufnahme“."
+                     ? "In Second Display mode the MacBook is muted and sound plays on the iMac. Needs “Screen & System Audio Recording” permission."
                      : audioLine)
             }
 
-            StatusRow(symbol: "web.camera.fill", color: cameraColor, title: "iMac-Kamera",
+            StatusRow(symbol: "web.camera.fill", color: cameraColor, title: "iMac Camera",
                       detail: media.cameraInstalled
-                          ? (media.cameraInUse ? (media.cameraReceiving ? "Wird genutzt – Bild kommt vom iMac" : "Wird genutzt – warte auf den iMac…")
-                                               : "Bereit – in FaceTime, Zoom & Co. als „iMac-Kamera (DuoDisplay)“")
-                          : "Nicht aktiviert",
+                          ? (media.cameraInUse ? (media.cameraReceiving ? "In use, receiving from the iMac" : "In use, waiting for the iMac…")
+                                               : "Ready: choose “iMac Camera (DuoDisplay)” in FaceTime, Zoom etc.")
+                          : "Not activated",
                       warning: media.cameraMessage) {
                 if !media.cameraInstalled {
-                    Button("Aktivieren…") { media.activateCameraExtension() }
+                    Button("Activate…") { media.activateCameraExtension() }
                 }
             }
 
-            StatusRow(symbol: "mic.fill", color: micColor, title: "iMac-Mikrofon",
+            StatusRow(symbol: "mic.fill", color: micColor, title: "iMac Microphone",
                       detail: media.micInstalled
-                          ? (media.micInUse ? (media.micReceiving ? "Wird genutzt – Ton kommt vom iMac" : "Wird genutzt – warte auf den iMac…")
-                                            : "Bereit – als „iMac-Mikrofon (DuoDisplay)“ auswählbar")
-                          : "Nicht installiert",
+                          ? (media.micInUse ? (media.micReceiving ? "In use, receiving from the iMac" : "In use, waiting for the iMac…")
+                                            : "Ready: choose “iMac Microphone (DuoDisplay)”")
+                          : "Not installed",
                       warning: media.micMessage) {
                 if media.installingMic {
                     ProgressView().controlSize(.small)
                 } else if !media.micInstalled || media.micNeedsUpdate {
-                    Button(media.micInstalled ? "Aktualisieren…" : "Installieren…") { media.installMic() }
+                    Button(media.micInstalled ? "Update…" : "Install…") { media.installMic() }
                 }
             }
 
@@ -385,9 +385,9 @@ struct MediaSection: View {
                 NoticeRow(text: "iMac: \(problem)")
             }
         } header: {
-            Text("Ton, Kamera & Mikrofon")
+            Text("Sound, Camera & Microphone")
         } footer: {
-            Text("Kamera und Mikrofon des iMac laufen nur, solange eine App auf diesem Mac sie benutzt.")
+            Text("The iMac’s camera and microphone only run while an app on this Mac uses them.")
                 .footerText()
         }
     }

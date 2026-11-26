@@ -136,7 +136,7 @@ final class AppModel: ObservableObject {
         switch role {
         case "sender": return sender.statusText
         case "receiver": return receiver.statusText
-        default: return "Kein Modus gewählt"
+        default: return "No role chosen"
         }
     }
 }
@@ -150,21 +150,21 @@ struct MenuContent: View {
                 Button {
                     model.toggle()
                 } label: {
-                    Label((model.currentMode == .display ? "Normal nutzen" : "Als zweiten Bildschirm nutzen")
+                    Label((model.currentMode == .display ? "Normal Use" : "Use as Second Display")
                               + "  (\(GlobalHotKey.label))",
                           systemImage: model.currentMode == .display ? "display" : "display.2")
                 }
                 Button {
                     model.togglePiP()
                 } label: {
-                    Label("Bild-in-Bild ein/aus  (\(GlobalHotKey.pipLabel))", systemImage: "pip")
+                    Label("Picture-in-Picture  (\(GlobalHotKey.pipLabel))", systemImage: "pip")
                 }
             }
         }
         Divider()
-        Button("DuoDisplay-Fenster öffnen…") { DockPresence.shared.showMainWindow() }
+        Button("Open DuoDisplay Window…") { DockPresence.shared.showMainWindow() }
         Divider()
-        Button("DuoDisplay beenden") { NSApp.terminate(nil) }
+        Button("Quit DuoDisplay") { NSApp.terminate(nil) }
     }
 }
 
@@ -199,35 +199,35 @@ struct ModePicker: View {
                     .interpolation(.high)
                     .frame(width: 84, height: 84)
                     .accessibilityHidden(true)
-                Text("Willkommen bei DuoDisplay")
+                Text("Welcome to DuoDisplay")
                     .font(.largeTitle.weight(.bold))
                     .tracking(-0.4)
-                Text("Ein Mac als zweiter Bildschirm des anderen – per Thunderbolt, mit minimaler Latenz.")
+                Text("Use one Mac as a second display for another, over Thunderbolt with minimal latency.")
                     .font(.title3)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
 
             VStack(spacing: 14) {
-                Text("Wofür soll dieser Mac genutzt werden?")
+                Text("What is this Mac for?")
                     .font(.headline)
                 HStack(spacing: 16) {
                     ModeCard(symbol: "macbook", color: .blue,
-                             device: "Auf dem MacBook",
-                             title: "Bildschirm erweitern",
-                             text: "Das MacBook bekommt einen zusätzlichen Bildschirm, der auf dem anderen Mac angezeigt wird.") {
+                             device: "On the MacBook",
+                             title: "Extend Display",
+                             text: "The MacBook gets an extra display, shown on the other Mac.") {
                         mode = "sender"
                     }
                     ModeCard(symbol: "display", color: .indigo,
-                             device: "Auf dem iMac",
-                             title: "Als Bildschirm verwenden",
-                             text: "Der iMac zeigt den Bildschirm des MacBook – seine Tastatur und sein Trackpad steuern dann das MacBook.") {
+                             device: "On the iMac",
+                             title: "Use as Display",
+                             text: "The iMac shows the MacBook’s display, and its keyboard and trackpad control the MacBook.") {
                         mode = "receiver"
                     }
                 }
             }
 
-            ShortcutHint(text: "Später jederzeit umschalten mit", keys: GlobalHotKey.label)
+            ShortcutHint(text: "Switch anytime with", keys: GlobalHotKey.label)
         }
         .padding(40)
         .frame(minWidth: 660, minHeight: 520)

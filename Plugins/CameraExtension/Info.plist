@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>de</string>
 	<key>CFBundleDisplayName</key>
-	<string>iMac-Kamera (DuoDisplay)</string>
+	<string>iMac Camera (DuoDisplay)</string>
 	<key>CFBundleExecutable</key>
 	<string>__BUNDLE_ID__.CameraExtension</string>
 	<key>CFBundleIdentifier</key>
@@ -28,6 +28,6 @@
 		<string>__TEAM_ID__.__BUNDLE_ID__.camera</string>
 	</dict>
 	<key>NSSystemExtensionUsageDescription</key>
-	<string>Stellt die Kamera des iMac auf diesem Mac als Kamera für FaceTime, Zoom &amp; Co. bereit.</string>
+	<string>Makes the iMac’s camera available on this Mac for FaceTime, Zoom and other apps.</string>
 </dict>
 </plist>

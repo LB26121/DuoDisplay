@@ -113,7 +113,7 @@ final class ControlChannel {
                 return
             }
             let length = data.withUnsafeBytes { UInt32(bigEndian: $0.loadUnaligned(as: UInt32.self)) }
-            guard length > 0, length < 1_000_000 else { self.finish(DDError("Ungültige Steuernachricht")); return }
+            guard length > 0, length < 1_000_000 else { self.finish(DDError("Invalid control message")); return }
             self.receiveBody(Int(length))
         }
     }
@@ -126,7 +126,7 @@ final class ControlChannel {
             if self.opener != nil {
                 guard data.first == Self.encryptedMarker, let plain = try? self.opener!.open(Data(data.dropFirst())),
                       !plain.isEmpty else {
-                    self.finish(DDError("Steuernachricht nicht authentisch"))
+                    self.finish(DDError("Control message not authentic"))
                     return
                 }
                 data = plain

@@ -20,14 +20,14 @@ enum UISnapshot {
         prompt.close()
 
         let pages: [(String, AnyView, CGSize)] = [
-            ("1-modus", AnyView(ModePicker(mode: .constant(""))), CGSize(width: 700, height: 560)),
+            ("1-mode", AnyView(ModePicker(mode: .constant(""))), CGSize(width: 700, height: 560)),
             ("2-macbook", AnyView(SenderView(session: sender, onBack: {})), CGSize(width: 640, height: 1700)),
             ("3-imac", AnyView(ReceiverView(service: receiver, onBack: {})), CGSize(width: 620, height: 1150)),
-            ("4-koppeln", AnyView(PairingPromptView(prompt: prompt)), CGSize(width: 400, height: 380)),
+            ("4-pairing", AnyView(PairingPromptView(prompt: prompt)), CGSize(width: 400, height: 380)),
         ]
         try? FileManager.default.createDirectory(atPath: output, withIntermediateDirectories: true)
 
-        for (appearanceName, suffix) in [(NSAppearance.Name.aqua, "hell"), (.darkAqua, "dunkel")] {
+        for (appearanceName, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
             for (name, view, size) in pages {
                 let window = NSWindow(contentRect: CGRect(origin: .zero, size: size),
                                       styleMask: [.titled, .closable, .miniaturizable],

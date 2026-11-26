@@ -35,7 +35,7 @@ enum PiPSelfTest {
     }
 
     private static func script() {
-        say("DuoDisplay Bild-in-Bild-Selbsttest\n")
+        say("DuoDisplay picture-in-picture self-test\n")
         let macPoints = CGSize(width: 1470, height: 956)
         let renderer = VideoRenderer()
         let presenter = renderer.presenter
@@ -43,31 +43,31 @@ enum PiPSelfTest {
         DispatchQueue.main.sync { pip.show(contentPoints: macPoints, localCursor: true) }
         Thread.sleep(forTimeInterval: 0.4)
 
-        say("▶︎ Fenster")
+        say("▶︎ Window")
         guard let target = DispatchQueue.main.sync(execute: { pip.target }) else {
-            check("Fenster sichtbar", false)
+            check("window visible", false)
             return
         }
-        check("Fenster sichtbar", true)
+        check("window visible", true)
         let aspect = target.video.width / target.video.height
-        check(String(format: "Seitenverhältnis wie das MacBook (%.3f, erwartet %.3f)", aspect, macPoints.width / macPoints.height),
+        check(String(format: "aspect ratio matches the MacBook (%.3f, expected %.3f)", aspect, macPoints.width / macPoints.height),
               abs(aspect - macPoints.width / macPoints.height) < 0.01)
-        check("Titelleiste über dem Bild", target.window.minY < target.video.minY - 10)
+        check("title bar above the picture", target.window.minY < target.video.minY - 10)
         let layerOK = DispatchQueue.main.sync { () -> Bool in
             let scale = NSScreen.screens.first?.backingScaleFactor ?? 2
             return abs(presenter.layer.frame.width - target.video.width) < 1
                 && abs(presenter.layer.drawableSize.width - target.video.width * scale) < 2
         }
-        check("Video-Ebene füllt das Fenster (auch in Pixeln)", layerOK)
+        check("video layer fills the window (in pixels too)", layerOK)
         var picked: [Bool] = []
         let switchOK = DispatchQueue.main.sync { () -> Bool in
             pip.onExtendedChange = { picked.append($0) }
             return pip.selectForTest(extended: true) && pip.extendedSelected
                 && pip.selectForTest(extended: false) && !pip.extendedSelected
         }
-        check("Umschalter Gespiegelt/Erweitert in der Titelleiste meldet die Wahl (\(picked))",
+        check("Mirrored/Extended switch in the title bar reports the choice (\(picked))",
               switchOK && picked == [true, false])
-        check("Umschalter verkleinert das Bild nicht",
+        check("switch doesn’t shrink the picture",
               DispatchQueue.main.sync { pip.target?.video } == target.video)
 
         // Test picture: horizontal gradient (NV12), the MacBook pointer in the middle.
@@ -82,11 +82,11 @@ enum PiPSelfTest {
         presenter.updateCursor(x: 735, y: 478, visible: true)
         Thread.sleep(forTimeInterval: 0.3)
         let video = presenter.syncVideo()
-        check("Bild gezeichnet (\(video.draws) mit Video, \(video.textureFailures) Textur-Fehler)",
+        check("picture drawn (\(video.draws) with video, \(video.textureFailures) texture failures)",
               video.draws > 0 && video.textureFailures == 0)
         let cursor = presenter.syncCursor()
         let expectedX = target.video.width / 2 - arrow.hotSpot.x * target.video.width / macPoints.width
-        check(String(format: "MacBook-Zeiger in der Bildmitte (x %.1f, erwartet %.1f)", cursor.frame.minX, expectedX),
+        check(String(format: "MacBook pointer in the center (x %.1f, expected %.1f)", cursor.frame.minX, expectedX),
               !cursor.hidden && abs(cursor.frame.minX - expectedX) < 1)
         // Time for a look / a screenshot (DD_PIP_HOLD=Sekunden), test picture repeated like a stream.
         let hold = Double(ProcessInfo.processInfo.environment["DD_PIP_HOLD"] ?? "") ?? 0
@@ -102,11 +102,11 @@ enum PiPSelfTest {
             }
             Thread.sleep(forTimeInterval: 0.2)
             let v = presenter.syncVideo()
-            say("  (Halten: \(v.draws) Bilder mit Video gezeichnet, \(v.textureFailures) Textur-Fehler)")
+            say("  (hold: \(v.draws) frames drawn with video, \(v.textureFailures) texture failures)")
         }
-        say("\n▶︎ Zeiger ins Bild")
+        say("\n▶︎ Pointer into the picture")
         guard AXIsProcessTrusted() else {
-            say("  ✗ Bedienungshilfen-Freigabe fehlt (mit open -W build/DuoDisplay.app --args --piptest … starten)")
+            say("  ✗ Accessibility permission missing (start with open -W build/DuoDisplay.app --args --piptest …)")
             ok = false
             return
         }
@@ -132,44 +132,44 @@ enum PiPSelfTest {
         move(inLeft)   // already inside when watching starts
         watcher.watch(nil, pip: target)
         move(CGPoint(x: inLeft.x + 20, y: inLeft.y))
-        check("Zeiger schon im Bild beim Öffnen → noch nicht übernommen", takeEntries().isEmpty)
+        check("pointer already inside when opening → not taken over yet", takeEntries().isEmpty)
 
         move(left)
         move(inLeft)
         let over = EdgeWatcher.coveringWindows(inLeft, above: target.windowID)
-        if !over.isEmpty { say("  Fenster über dem Bild: " + over.joined(separator: ", ")) }
+        if !over.isEmpty { say("  windows above the picture: " + over.joined(separator: ", ")) }
         let fromLeft = takeEntries()
-        check(String(format: "von links hinein → übernommen bei x %.2f, y %.2f",
+        check(String(format: "in from the left → taken over at x %.2f, y %.2f",
                      fromLeft.first?.x ?? -1, fromLeft.first?.y ?? -1),
               fromLeft.count == 1 && fromLeft[0].x < 0.05 && abs(fromLeft[0].y - 0.5) < 0.05)
 
         move(CGPoint(x: inLeft.x + 15, y: inLeft.y))
-        check("weitere Bewegung im Bild → nur einmal", takeEntries().isEmpty)
+        check("further movement inside → only once", takeEntries().isEmpty)
 
         watcher.watch(nil, pip: nil)
         watcher.watch(nil, pip: target)
         move(CGPoint(x: v.midX, y: v.maxY + 30))
         move(CGPoint(x: v.midX, y: v.maxY - 8))
         let fromBottom = takeEntries()
-        check("von unten hinein → übernommen unten", fromBottom.count == 1 && (fromBottom.first?.y ?? 0) > 0.95)
+        check("in from below → taken over at the bottom", fromBottom.count == 1 && (fromBottom.first?.y ?? 0) > 0.95)
 
         watcher.watch(nil, pip: nil)
         watcher.watch(nil, pip: target)
         move(CGPoint(x: v.midX, y: target.window.minY + 5))   // title bar
         move(CGPoint(x: v.midX, y: v.minY + 6))
         let fromTop = takeEntries()
-        check("von der Titelleiste hinein → übernommen oben", fromTop.count == 1 && (fromTop.first?.y ?? 1) < 0.05)
+        check("in from the title bar → taken over at the top", fromTop.count == 1 && (fromTop.first?.y ?? 1) < 0.05)
 
         watcher.watch(nil, pip: nil)
         watcher.watch(nil, pip: target)
         move(CGPoint(x: v.maxX + 30, y: v.midY))
         move(CGPoint(x: v.maxX - 2, y: v.midY))
-        check("im Rand zum Größe-Ändern → nicht übernommen", takeEntries().isEmpty)
+        check("in the resize border → not taken over", takeEntries().isEmpty)
         move(CGPoint(x: v.maxX - 10, y: v.midY), dragged: true)
-        check("mit gedrückter Taste (Ziehen) → nicht übernommen", takeEntries().isEmpty)
+        check("with button held (dragging) → not taken over", takeEntries().isEmpty)
         move(CGPoint(x: v.maxX - 12, y: v.midY))
         let fromRight = takeEntries()
-        check("danach ohne Taste → übernommen rechts", fromRight.count == 1 && (fromRight.first?.x ?? 0) > 0.95)
+        check("then without button → taken over at the right", fromRight.count == 1 && (fromRight.first?.x ?? 0) > 0.95)
 
         // A menu-like window above the picture: no takeover under it.
         let cover = DispatchQueue.main.sync { () -> NSWindow in
@@ -186,13 +186,13 @@ enum PiPSelfTest {
         watcher.watch(nil, pip: target)
         move(left)
         move(CGPoint(x: v.minX + 100, y: v.minY + 60))   // under the cover window
-        check("unter einem Menü über dem Bild → nicht übernommen", takeEntries().isEmpty)
+        check("under a menu above the picture → not taken over", takeEntries().isEmpty)
         move(CGPoint(x: v.minX + 100, y: v.maxY - 30))   // free part of the picture
-        check("daneben im freien Teil → übernommen", takeEntries().count == 1)
+        check("next to it in the free part → taken over", takeEntries().count == 1)
         DispatchQueue.main.sync { cover.orderOut(nil) }
         watcher.watch(nil, pip: nil)
 
-        say("\n▶︎ Größe ändern")
+        say("\n▶︎ Resize")
         DispatchQueue.main.sync {
             if let window = NSApp.windows.first(where: { $0.windowNumber == Int(target.windowID) }) {
                 window.setContentSize(CGSize(width: 600, height: 600 * macPoints.height / macPoints.width))
@@ -201,18 +201,18 @@ enum PiPSelfTest {
         Thread.sleep(forTimeInterval: 0.3)
         let resized = DispatchQueue.main.sync { pip.target }
         let scale = NSScreen.screens.first?.backingScaleFactor ?? 2
-        check("neue Größe übernommen", abs((resized?.video.width ?? 0) - 600) < 1)
-        check("Video-Ebene mitgewachsen", DispatchQueue.main.sync {
+        check("new size applied", abs((resized?.video.width ?? 0) - 600) < 1)
+        check("video layer resized along", DispatchQueue.main.sync {
             abs(presenter.layer.drawableSize.width - 600 * scale) < 2 && abs(presenter.layer.frame.width - 600) < 1
         })
         if let resized {
             let s = PiPGeometry.motionScale(macPoints: macPoints, video: resized.video)
-            check(String(format: "Zeigertempo im Bild: ×%.2f", s), abs(s - 1470.0 / 600) < 0.01)
+            check(String(format: "pointer speed in the picture: ×%.2f", s), abs(s - 1470.0 / 600) < 0.01)
         }
 
         DispatchQueue.main.sync { pip.hide() }
-        check("Schließen blendet das Fenster aus", DispatchQueue.main.sync { pip.target == nil })
-        say(ok ? "\nERGEBNIS: OK" : "\nERGEBNIS: FEHLER")
+        check("closing hides the window", DispatchQueue.main.sync { pip.target == nil })
+        say(ok ? "\nRESULT: OK" : "\nRESULT: FAILED")
     }
 
     private static func testPicture(width: Int, height: Int) -> CVPixelBuffer? {

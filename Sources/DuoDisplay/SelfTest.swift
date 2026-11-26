@@ -11,7 +11,7 @@ import os
 /// → reassembly → keyframe/loss handling → hardware decoder. Prints latency numbers.
 enum SelfTest {
     static func run() -> Bool {
-        print("DuoDisplay Selbsttest (Encoder → UDP → Reassembly → Decoder, Loopback)\n")
+        print("DuoDisplay self-test (encoder → UDP → reassembly → decoder, loopback)\n")
         var ok = true
         let env = ProcessInfo.processInfo.environment
         if let w = env["DD_W"].flatMap(Int.init), let h = env["DD_H"].flatMap(Int.init) {
@@ -26,7 +26,7 @@ enum SelfTest {
         // ProRes: every frame is a keyframe, so a loss costs exactly one frame.
         ok = runOne(codec: .prores, width: 3024, height: 1890, fps: 60, seconds: 3, datagram: 8900, dropEvery: 90) && ok
         ok = runOne(codec: .prores, width: 3024, height: 1890, fps: 60, seconds: 2, datagram: 1400, dropEvery: 0) && ok
-        print(ok ? "\nERGEBNIS: OK" : "\nERGEBNIS: FEHLER")
+        print(ok ? "\nRESULT: OK" : "\nRESULT: FAILED")
         return ok
     }
 
@@ -39,19 +39,19 @@ enum SelfTest {
         DispatchQueue.main.async {
             guard let display = VirtualDisplay(name: "DuoDisplay Test", serial: 42, pixelWidth: pxW, pixelHeight: pxH,
                                                pointWidth: ptW, pointHeight: ptH, refreshRate: 120, hiDPI: true, placeRight: true) else {
-                print("✗ CGVirtualDisplay konnte nicht erstellt werden"); done.signal(); return
+                print("✗ Could not create CGVirtualDisplay"); done.signal(); return
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 let id = display.displayID
                 if let mode = CGDisplayCopyDisplayMode(id) {
-                    print("Virtueller Bildschirm \(id): \(mode.width)×\(mode.height) pt, \(mode.pixelWidth)×\(mode.pixelHeight) px, \(mode.refreshRate) Hz")
+                    print("Virtual display \(id): \(mode.width)×\(mode.height) pt, \(mode.pixelWidth)×\(mode.pixelHeight) px, \(mode.refreshRate) Hz")
                     ok = mode.pixelWidth == pxW && mode.pixelHeight == pxH && mode.width == ptW && mode.height == ptH && mode.refreshRate == 120
                 }
                 let bounds = CGDisplayBounds(id)
                 let main = CGDisplayBounds(CGMainDisplayID())
-                print("Position im Bildschirmverbund: \(bounds) (Hauptbildschirm \(main))")
-                if bounds.minX != main.maxX { print("✗ nicht rechts neben dem Hauptbildschirm"); ok = false; done.signal(); return }
-                print(ok ? "✓ HiDPI-Modus korrekt" : "✗ Modus weicht ab")
+                print("Position in display arrangement: \(bounds) (main display \(main))")
+                if bounds.minX != main.maxX { print("✗ not to the right of the main display"); ok = false; done.signal(); return }
+                print(ok ? "✓ HiDPI mode correct" : "✗ mode differs")
                 withExtendedLifetime(display) {}
                 done.signal()
             }
@@ -73,73 +73,73 @@ enum SelfTest {
             return CGEvent(withDataAllocator: kCFAllocatorDefault, data: data as CFData)
         }
 
-        print("Scrollen mit Trackpad-Phasen und Schwung:")
+        print("Scrolling with trackpad phases and momentum:")
         let scroll = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2, wheel1: -12, wheel2: 3, wheel3: 0)!
         scroll.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
         scroll.setIntegerValueField(.scrollWheelEventScrollPhase, value: 2)      // changed
         scroll.setIntegerValueField(.scrollWheelEventMomentumPhase, value: 0)
         scroll.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1, value: -12.75)
         if let r = roundtrip(scroll) {
-            check("Typ", r.type == .scrollWheel)
-            check("kontinuierlich (Trackpad)", r.getIntegerValueField(.scrollWheelEventIsContinuous) == 1)
-            check("Scroll-Phase", r.getIntegerValueField(.scrollWheelEventScrollPhase) == 2)
-            check("Pixel-Delta", r.getIntegerValueField(.scrollWheelEventPointDeltaAxis1) == -12)
-            check("Sub-Pixel-Delta", abs(r.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1) + 12.75) < 0.01)
-        } else { check("Serialisierung", false) }
+            check("type", r.type == .scrollWheel)
+            check("continuous (trackpad)", r.getIntegerValueField(.scrollWheelEventIsContinuous) == 1)
+            check("scroll phase", r.getIntegerValueField(.scrollWheelEventScrollPhase) == 2)
+            check("pixel delta", r.getIntegerValueField(.scrollWheelEventPointDeltaAxis1) == -12)
+            check("sub-pixel delta", abs(r.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1) + 12.75) < 0.01)
+        } else { check("serialization", false) }
 
-        print("Doppelklick und Ziehen:")
+        print("Double-click and drag:")
         let click = CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown, mouseCursorPosition: CGPoint(x: 10, y: 10), mouseButton: .left)!
         click.setIntegerValueField(.mouseEventClickState, value: 2)
         click.setDoubleValueField(.mouseEventPressure, value: 0.8)
         if let r = roundtrip(click) {
-            check("Klickanzahl 2", r.getIntegerValueField(.mouseEventClickState) == 2)
-            check("Druck (Force Touch)", abs(r.getDoubleValueField(.mouseEventPressure) - 0.8) < 0.01)
-        } else { check("Serialisierung", false) }
+            check("click count 2", r.getIntegerValueField(.mouseEventClickState) == 2)
+            check("pressure (Force Touch)", abs(r.getDoubleValueField(.mouseEventPressure) - 0.8) < 0.01)
+        } else { check("serialization", false) }
         let drag = CGEvent(mouseEventSource: nil, mouseType: .leftMouseDragged, mouseCursorPosition: CGPoint(x: 10, y: 10), mouseButton: .left)!
         drag.setIntegerValueField(.mouseEventDeltaX, value: 3)
         drag.setIntegerValueField(.mouseEventDeltaY, value: -2)
         if let r = roundtrip(drag) {
-            check("relative Bewegung", r.getIntegerValueField(.mouseEventDeltaX) == 3 && r.getIntegerValueField(.mouseEventDeltaY) == -2)
-        } else { check("Serialisierung", false) }
+            check("relative motion", r.getIntegerValueField(.mouseEventDeltaX) == 3 && r.getIntegerValueField(.mouseEventDeltaY) == -2)
+        } else { check("serialization", false) }
 
-        print("Tastatur mit Modifiern:")
+        print("Keyboard with modifiers:")
         let key = CGEvent(keyboardEventSource: nil, virtualKey: 0x30, keyDown: true)!   // Tab
         key.flags = [.maskCommand]
         if let r = roundtrip(key) {
             check("⌘-Tab", r.getIntegerValueField(.keyboardEventKeycode) == 0x30 && r.flags.contains(.maskCommand))
-        } else { check("Serialisierung", false) }
+        } else { check("serialization", false) }
 
-        print("Trackpad-Geste (privater Event-Typ 29, Felder wie bei einer Dock-Wischgeste):")
+        print("Trackpad gesture (private event type 29, fields as in a Dock swipe):")
         let gesture = CGEvent(source: nil)!
         gesture.type = CGEventType(rawValue: 29)!
         let fields: [(UInt32, Int64)] = [(110, 23), (132, 1), (134, 2)]
         for (field, value) in fields { gesture.setIntegerValueField(CGEventField(rawValue: field)!, value: value) }
         gesture.setDoubleValueField(CGEventField(rawValue: 124)!, value: 0.42)
         if let r = roundtrip(gesture) {
-            check("Typ 29", r.type.rawValue == 29)
-            check("Gesten-Subtyp und Phase", fields.allSatisfy { r.getIntegerValueField(CGEventField(rawValue: $0.0)!) == $0.1 })
-            check("Gesten-Fortschritt", abs(r.getDoubleValueField(CGEventField(rawValue: 124)!) - 0.42) < 0.001)
-        } else { check("Serialisierung", false) }
+            check("type 29", r.type.rawValue == 29)
+            check("gesture subtype and phase", fields.allSatisfy { r.getIntegerValueField(CGEventField(rawValue: $0.0)!) == $0.1 })
+            check("gesture progress", abs(r.getDoubleValueField(CGEventField(rawValue: 124)!) - 0.42) < 0.001)
+        } else { check("serialization", false) }
 
-        print("Lautstärketasten (bleiben im Bildschirm-Modus auf dem iMac):")
+        print("Volume keys (stay on the iMac in Second Display mode):")
         func auxKey(_ key: Int, down: Bool = true) -> CGEvent? {
             NSEvent.otherEvent(with: .systemDefined, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0,
                                context: nil, subtype: 8, data1: (key << 16) | ((down ? 0xA : 0xB) << 8), data2: -1)?.cgEvent
         }
         func isVolume(_ e: CGEvent?) -> Bool { e.map { VolumeKey.matches(type: $0.type.rawValue, event: $0) } ?? false }
-        check("lauter / leiser / stumm (gedrückt und losgelassen)",
+        check("up / down / mute (pressed and released)",
               isVolume(auxKey(0)) && isVolume(auxKey(1)) && isVolume(auxKey(7)) && isVolume(auxKey(0, down: false)))
-        check("Wiedergabe, Helligkeit, Tastaturlicht werden weitergeleitet",
+        check("play, brightness, keyboard light are forwarded",
               !isVolume(auxKey(16)) && !isVolume(auxKey(2)) && !isVolume(auxKey(3)) && !isVolume(auxKey(21)))
-        check("Tastencodes lauter / leiser / stumm", [0x48, 0x49, 0x4A].allSatisfy {
+        check("key codes up / down / mute", [0x48, 0x49, 0x4A].allSatisfy {
             isVolume(CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode($0), keyDown: true)) })
-        check("normale Taste (Tab, F11) wird weitergeleitet",
+        check("normal key (Tab, F11) is forwarded",
               !isVolume(key) && !isVolume(CGEvent(keyboardEventSource: nil, virtualKey: 0x67, keyDown: true)))
         if let up = auxKey(0), let r = roundtrip(up) {
-            check("CGEvent-Typ 14 nach Serialisierung erkannt", r.type.rawValue == VolumeKey.systemDefined && isVolume(r))
-        } else { check("Serialisierung", false) }
+            check("CGEvent type 14 recognized after serialization", r.type.rawValue == VolumeKey.systemDefined && isVolume(r))
+        } else { check("serialization", false) }
 
-        print(ok ? "ERGEBNIS: OK" : "ERGEBNIS: FEHLER")
+        print(ok ? "RESULT: OK" : "RESULT: FAILED")
         return ok
     }
 
@@ -172,8 +172,8 @@ enum SelfTest {
         let (width, height) = (3024, 1890)
         let codec: VideoCodec = CommandLine.arguments.contains("--prores") ? .prores : .hevc
         let vsync = ProcessInfo.processInfo.environment["DD_VSYNC"] != "0"
-        print("Empfangspfad: \(codec.label) \(width)×\(height)@\(fps) → Hardware-Decoder → Metal (\(vsync ? "mit" : "ohne") V-Sync)"
-              + (window == nil ? "" : ", im Fenster, Zeiger \(fps * cursorUpdatesPerFrame) Hz"))
+        print("Receive path: \(codec.label) \(width)×\(height)@\(fps) → hardware decoder → Metal (V-Sync \(vsync ? "on" : "off"))"
+              + (window == nil ? "" : ", in window, pointer \(fps * cursorUpdatesPerFrame) Hz"))
         let renderer = VideoRenderer()
         let presenter = renderer.presenter
         presenter.vsync = vsync
@@ -254,7 +254,7 @@ enum SelfTest {
         let expectedTop = originTop + (300 - arrow.hotSpot.y) * fitP
         let actualTop = bounds.height - pointer.frame.maxY   // layer: bottom-left origin
         let pointerOK = !pointer.hidden && abs(pointer.frame.minX - expectedX) < 0.5 && abs(actualTop - expectedTop) < 0.5
-        print(String(format: "  Zeiger-Ebene: %d Updates, zuletzt bei (%.1f, %.1f) pt von oben links, erwartet (%.1f, %.1f) %@",
+        print(String(format: "  pointer layer: %d updates, last at (%.1f, %.1f) pt from top left, expected (%.1f, %.1f) %@",
                      pointer.updates, pointer.frame.minX, actualTop, expectedX, expectedTop, pointerOK ? "✓" : "✗"))
         let inOrder = latencies.withLock { $0 }
         let l = inOrder.sorted()
@@ -262,8 +262,8 @@ enum SelfTest {
         let p95 = l.isEmpty ? .nan : l[min(l.count - 1, l.count * 95 / 100)]
         let tail = inOrder.suffix(max(1, inOrder.count / 5))
         let tailAvg = tail.reduce(0, +) / Double(tail.count)
-        print("  Bilder an GPU übergeben: \(l.count) von \(total) Video-Frames, Render-Durchläufe gesamt \(rendered)")
-        print(String(format: "  Frame→Bildschirm (Encode + Decode + Render): Ø %.2f ms · p50 %.2f · p95 %.2f · max %.2f ms · letzte 20 %% Ø %.2f ms",
+        print("  frames handed to GPU: \(l.count) of \(total) video frames, render passes total \(rendered)")
+        print(String(format: "  frame→screen (encode + decode + render): avg %.2f ms · p50 %.2f · p95 %.2f · max %.2f ms · last 20 %% avg %.2f ms",
                      avg, l.isEmpty ? .nan : l[l.count / 2], p95, l.last ?? .nan, tailAvg))
         let ok: Bool
         if window == nil {
@@ -272,7 +272,7 @@ enum SelfTest {
             // Frames may be skipped (newest wins), but delay must stay bounded and must not grow.
             ok = l.count >= total / 3 && p95 < 40 && tailAvg < 40 && pointerOK
         }
-        print(ok ? "ERGEBNIS: OK" : "ERGEBNIS: FEHLER")
+        print(ok ? "RESULT: OK" : "RESULT: FAILED")
         return ok
     }
 
@@ -286,7 +286,7 @@ enum SelfTest {
 
     private static func runOne(codec: VideoCodec, width: Int, height: Int, fps: Int,
                                seconds: Double, datagram: Int, dropEvery: Int) -> Bool {
-        let label = "\(codec.label) \(width)×\(height)@\(fps), \(datagram) B/Paket" + (dropEvery > 0 ? ", Verlust alle \(dropEvery) Frames" : "")
+        let label = "\(codec.label) \(width)×\(height)@\(fps), \(datagram) B/packet" + (dropEvery > 0 ? ", loss every \(dropEvery) frames" : "")
         print("▶︎ \(label)")
 
         let results = OSAllocatedUnfairLock(initialState: Results())
@@ -306,7 +306,7 @@ enum SelfTest {
         do {
             encoder = try VideoEncoder(codec: codec, width: width, height: height, fps: fps, bitrateMbps: 120)
         } catch { print("  \(error.localizedDescription)"); return false }
-        print("  Hardware-Encoder: \(encoder.hardware ? "ja" : "nein") · Low-Latency-Ratensteuerung: \(encoder.lowLatencyMode ? "ja" : "nein")")
+        print("  hardware encoder: \(encoder.hardware ? "yes" : "no") · low-latency rate control: \(encoder.lowLatencyMode ? "yes" : "no")")
 
         var lastKeyRequest: UInt64 = 0
         let requestKeyframe = {
@@ -381,7 +381,7 @@ enum SelfTest {
             kCVPixelBufferIOSurfacePropertiesKey: [:] as CFDictionary,
         ]
         CVPixelBufferPoolCreate(nil, nil, attrs as CFDictionary, &pool)
-        guard let pool else { print("  PixelBufferPool fehlgeschlagen"); return false }
+        guard let pool else { print("  PixelBufferPool failed"); return false }
         let pattern = (0..<(width + 512)).map { UInt8(truncatingIfNeeded: $0) }
 
         let total = Int(seconds * Double(fps))
@@ -424,18 +424,18 @@ enum SelfTest {
         let sorted = r.latencies.sorted()
         func pct(_ p: Double) -> Double { sorted.isEmpty ? .nan : sorted[min(sorted.count - 1, Int(Double(sorted.count) * p))] }
         let avg = sorted.isEmpty ? .nan : sorted.reduce(0, +) / Double(sorted.count)
-        print(String(format: "  gesendet %d Frames (%d Keyframes), %.1f Mbit/s, Encoder Ø %.2f ms",
+        print(String(format: "  sent %d frames (%d keyframes), %.1f Mbit/s, encoder avg %.2f ms",
                      s.frames, s.keyframes, Double(s.bytes) * 8 / 1_000_000 / seconds,
                      s.frames > 0 ? Double(s.encodeNs) / Double(s.frames) / 1_000_000 : 0))
-        print("  dekodiert \(r.decoded), Decoderfehler \(r.decodeErrors), Verlustereignisse \(r.lostEvents), Keyframe-Anfragen \(r.keyframeRequests)")
-        print(String(format: "  Latenz Frame→dekodiert: Ø %.2f ms · p50 %.2f · p95 %.2f · max %.2f ms",
+        print("  decoded \(r.decoded), decoder errors \(r.decodeErrors), loss events \(r.lostEvents), keyframe requests \(r.keyframeRequests)")
+        print(String(format: "  latency frame→decoded: avg %.2f ms · p50 %.2f · p95 %.2f · max %.2f ms",
                      avg, pct(0.5), pct(0.95), sorted.last ?? .nan))
 
         // Every frame except those dropped and the ones until the next keyframe must arrive.
         // Intra-only (ProRes): a loss may only cost the lost frame itself, no wait for a keyframe.
         let expectedMin = Int(Double(s.frames) * (dropEvery > 0 && !codec.isIntraOnly ? 0.85 : 0.97))
         let pass = r.decodeErrors == 0 && r.decoded >= expectedMin && avg < 30
-        print(pass ? "  ✓ bestanden\n" : "  ✗ nicht bestanden (erwartet ≥ \(expectedMin) dekodierte Frames)\n")
+        print(pass ? "  ✓ passed\n" : "  ✗ failed (expected ≥ \(expectedMin) decoded frames)\n")
         return pass
     }
 }

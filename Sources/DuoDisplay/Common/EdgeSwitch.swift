@@ -1,7 +1,7 @@
 import Foundation
 import CoreGraphics
 
-/// "Normal nutzen" mode: move the iMac pointer over its edge onto the MacBook (and back),
+/// "Normal Use" mode: move the iMac pointer over its edge onto the MacBook (and back),
 /// like Universal Control – but over the existing DuoDisplay connection.
 ///
 ///   iMac (receiver)                                  MacBook (sender)
@@ -76,7 +76,7 @@ enum PiPSide: String, Codable {
     case left, right, top, bottom
 }
 
-/// Picture-in-picture ("Normal nutzen", ⌃⌥⌘P): the MacBook's main screen in a window on the iMac.
+/// Picture-in-picture ("Normal Use", ⌃⌥⌘P): the MacBook's main screen in a window on the iMac.
 /// Moving the iMac pointer into the picture (any side) hands keyboard and pointer to the MacBook;
 /// pushing the MacBook pointer out over any side of its main screen hands them back, and the iMac
 /// pointer reappears just outside the window at the matching spot.
@@ -184,7 +184,7 @@ enum PointerWarp {
 }
 
 /// Hides the pointer while DuoDisplay is NOT the active app (needed while the iMac keyboard and
-/// trackpad control the MacBook in "Normal nutzen" mode). NSCursor.hide only works for the
+/// trackpad control the MacBook in "Normal Use" mode). NSCursor.hide only works for the
 /// frontmost app; the WindowServer property below lifts that (same approach as Synergy/Deskflow).
 /// Falls back to a visible, frozen pointer if the private call ever disappears.
 enum BackgroundCursor {
@@ -199,7 +199,7 @@ enum BackgroundCursor {
         let rtldDefault = UnsafeMutableRawPointer(bitPattern: -2)
         guard let connSym = dlsym(rtldDefault, "_CGSDefaultConnection"),
               let setSym = dlsym(rtldDefault, "CGSSetConnectionProperty") else {
-            ddLog.notice("Zeiger im Hintergrund ausblenden nicht verfügbar")
+            ddLog.notice("Hiding the pointer in the background is unavailable")
             return
         }
         let connection = unsafeBitCast(connSym, to: DefaultConnection.self)()
@@ -235,38 +235,38 @@ enum EdgeSelfTest {
         let extraRight = CGRect(x: 2240, y: 0, width: 1920, height: 1080)
         let extraLeftLow = CGRect(x: -1920, y: 600, width: 1920, height: 1080)
 
-        check("iMac allein: linker Rand erkannt",
+        check("iMac alone: left edge detected",
               EdgeGeometry.outerEdgeDisplay(at: CGPoint(x: 0, y: 630), edge: .left, displays: [imac]) == imac)
-        check("iMac allein: 3 pt vor dem Rand nicht",
+        check("iMac alone: not 3 pt before the edge",
               EdgeGeometry.outerEdgeDisplay(at: CGPoint(x: 3, y: 630), edge: .left, displays: [imac]) == nil)
-        check("rechter Rand mit Bildschirm daneben zählt nicht",
+        check("right edge with a neighboring display doesn’t count",
               EdgeGeometry.outerEdgeDisplay(at: CGPoint(x: 2239, y: 500), edge: .right, displays: [imac, extraRight]) == nil)
-        check("rechter Rand des äußeren Bildschirms zählt",
+        check("right edge of the outer display counts",
               EdgeGeometry.outerEdgeDisplay(at: CGPoint(x: 4159, y: 500), edge: .right, displays: [imac, extraRight]) == extraRight)
-        check("linker Rand oberhalb eines versetzten Nachbarn zählt",
+        check("left edge above an offset neighbor counts",
               EdgeGeometry.outerEdgeDisplay(at: CGPoint(x: 0, y: 100), edge: .left, displays: [imac, extraLeftLow]) == imac)
-        check("linker Rand neben dem Nachbarn zählt nicht",
+        check("left edge next to the neighbor doesn’t count",
               EdgeGeometry.outerEdgeDisplay(at: CGPoint(x: 0, y: 900), edge: .left, displays: [imac, extraLeftLow]) == nil)
 
         let f = EdgeGeometry.fraction(of: 945, in: imac)
-        check("Höhe 945 von 1260 = 0,75", abs(f - 0.75) < 0.001)
+        check("height 945 of 1260 = 0.75", abs(f - 0.75) < 0.001)
         let macbook = CGRect(x: 0, y: 0, width: 1512, height: 982)
         if let p = EdgeGeometry.entryPoint(edge: .right, fraction: 0.75, displays: [macbook]) {
-            check("Eintritt MacBook rechts innen, gleiche relative Höhe",
+            check("entry on MacBook right inside, same relative height",
                   macbook.contains(p) && p.x > macbook.maxX - 4 && abs(Double(p.y) - 0.75 * 981) < 1)
-        } else { check("Eintrittspunkt MacBook", false) }
+        } else { check("entry point MacBook", false) }
         if let p = EdgeGeometry.entryPoint(edge: .left, fraction: 0, displays: [imac, extraLeftLow]) {
-            check("Eintritt links nimmt den äußersten Bildschirm", extraLeftLow.contains(p))
-        } else { check("Eintrittspunkt links", false) }
+            check("entry on the left uses the outermost display", extraLeftLow.contains(p))
+        } else { check("entry point left", false) }
         check("ScreenEdge.opposite", ScreenEdge.left.opposite == .right)
 
         let back = CGPoint(x: 2237, y: 600)
-        check("Rückkehr: Nachlauf wird übernommen",
+        check("return: overshoot carried over",
               EdgeGeometry.landingPoint(entry: back, carry: CGVector(dx: -40, dy: 10), displays: [imac])
                 == CGPoint(x: 2197, y: 610))
         let past = EdgeGeometry.landingPoint(entry: back, carry: CGVector(dx: 50, dy: 0), displays: [imac])
-        check("Rückkehr: nie über den äußeren Rand", imac.contains(past) && past.x < imac.maxX - 1)
-        check("Rückkehr: Nachlauf auf Nachbarbildschirm erlaubt",
+        check("return: never past the outer edge", imac.contains(past) && past.x < imac.maxX - 1)
+        check("return: overshoot onto neighboring display allowed",
               EdgeGeometry.landingPoint(entry: CGPoint(x: 2, y: 100), carry: CGVector(dx: -30, dy: 0),
                                         displays: [imac, CGRect(x: -1920, y: 0, width: 1920, height: 1080)]).x == -28)
 
@@ -274,47 +274,47 @@ enum EdgeSelfTest {
         let mbMain = CGRect(x: 0, y: 0, width: 1470, height: 956)
         let video = CGRect(x: 1000, y: 300, width: 735, height: 478)       // half size
         let pipWindow = CGRect(x: 1000, y: 272, width: 735, height: 506)   // + 28 pt title bar
-        check("PiP: Bewegung ×2 bei halber Größe",
+        check("PiP: motion ×2 at half size",
               abs(PiPGeometry.motionScale(macPoints: mbMain.size, video: video) - 2) < 0.001)
         let trig = PiPGeometry.triggerRect(video: video)
-        check("PiP: Auslösebereich lässt Rand zum Größe-Ändern frei",
+        check("PiP: trigger area leaves the resize border free",
               !trig.contains(CGPoint(x: 1001, y: 500)) && trig.contains(CGPoint(x: 1010, y: 301))
                 && !trig.contains(CGPoint(x: 1300, y: 777)))
         let nLeft = PiPGeometry.normalized(CGPoint(x: 1004, y: 539), in: video)
         let eLeft = PiPGeometry.entryPoint(nLeft, screen: mbMain)
-        check("PiP: von links hinein → MacBook-Zeiger links, gleiche Höhe",
+        check("PiP: in from the left → MacBook pointer left, same height",
               eLeft.x < 10 && abs(eLeft.y - 0.5 * 955) < 2)
         let eBottom = PiPGeometry.entryPoint(PiPGeometry.normalized(CGPoint(x: 1367, y: 774), in: video), screen: mbMain)
-        check("PiP: von unten hinein → MacBook-Zeiger unten", eBottom.y > 940 && abs(eBottom.x - 0.5 * 1469) < 2)
+        check("PiP: in from below → MacBook pointer at the bottom", eBottom.y > 940 && abs(eBottom.x - 0.5 * 1469) < 2)
         let eTopRight = PiPGeometry.entryPoint(CGPoint(x: 1, y: 0), screen: mbMain)
-        check("PiP: Ecke oben rechts bleibt auf dem Bildschirm", mbMain.contains(eTopRight))
-        check("PiP: innen kein Hinausschieben", PiPGeometry.overshoot(CGPoint(x: 700, y: 400), screen: mbMain) == nil)
-        check("PiP: rechts hinaus", PiPGeometry.overshoot(CGPoint(x: 1475, y: 400), screen: mbMain)?.side == .right)
-        check("PiP: oben hinaus", PiPGeometry.overshoot(CGPoint(x: 700, y: -3), screen: mbMain)?.side == .top)
-        check("PiP: Ecke – die stärkere Seite zählt",
+        check("PiP: top right corner stays on screen", mbMain.contains(eTopRight))
+        check("PiP: no exit from inside", PiPGeometry.overshoot(CGPoint(x: 700, y: 400), screen: mbMain) == nil)
+        check("PiP: out to the right", PiPGeometry.overshoot(CGPoint(x: 1475, y: 400), screen: mbMain)?.side == .right)
+        check("PiP: out at the top", PiPGeometry.overshoot(CGPoint(x: 700, y: -3), screen: mbMain)?.side == .top)
+        check("PiP: corner, the stronger side wins",
               PiPGeometry.overshoot(CGPoint(x: -2, y: 962), screen: mbMain)?.side == .bottom)
-        check("PiP: Zeiger bleibt auf dem MacBook-Bildschirm",
+        check("PiP: pointer stays on the MacBook screen",
               PiPGeometry.clamp(CGPoint(x: 2000, y: -5), to: mbMain) == CGPoint(x: 1469, y: 0))
         let landR = PiPGeometry.landingPoint(side: .right, n: CGPoint(x: 1, y: 0.25), video: video, window: pipWindow,
                                              carry: CGVector(dx: 12, dy: 4), displays: [imac])
-        check("PiP: rechts hinaus → rechts neben dem Fenster, Nachlauf übernommen",
+        check("PiP: out to the right → right of the window, overshoot carried over",
               abs(landR.x - (1735 + 3 + 12)) < 0.01 && abs(landR.y - (300 + 0.25 * 478 + 4)) < 0.01)
         let landT = PiPGeometry.landingPoint(side: .top, n: CGPoint(x: 0.5, y: 0), video: video, window: pipWindow,
                                              carry: .zero, displays: [imac])
-        check("PiP: oben hinaus → über der Titelleiste", landT.y < pipWindow.minY && abs(landT.x - 1367.5) < 0.01)
+        check("PiP: out at the top → above the title bar", landT.y < pipWindow.minY && abs(landT.x - 1367.5) < 0.01)
         let landBack = PiPGeometry.landingPoint(side: .left, n: CGPoint(x: 0, y: 0.5), video: video, window: pipWindow,
                                                 carry: CGVector(dx: 30, dy: 0), displays: [imac])
-        check("PiP: Nachlauf zurück ins Fenster wird verworfen", !pipWindow.contains(landBack) && landBack.x < 1000)
+        check("PiP: overshoot back into the window is discarded", !pipWindow.contains(landBack) && landBack.x < 1000)
         let edgeWindow = CGRect(x: 1700, y: 0, width: 540, height: 380)
         let landOff = PiPGeometry.landingPoint(side: .right, n: CGPoint(x: 1, y: 0.5),
                                                video: CGRect(x: 1700, y: 28, width: 540, height: 352),
                                                window: edgeWindow, carry: .zero, displays: [imac])
-        check("PiP: Fenster am Bildschirmrand → Zeiger bleibt auf dem Bildschirm", imac.contains(landOff))
+        check("PiP: window at screen edge → pointer stays on screen", imac.contains(landOff))
         check("PiP: Cocoa → CG",
               PiPGeometry.cgRect(fromCocoa: CGRect(x: 10, y: 1000, width: 100, height: 60), primaryHeight: 1260)
                 == CGRect(x: 10, y: 200, width: 100, height: 60))
 
-        print(ok ? "\nERGEBNIS: OK" : "\nERGEBNIS: FEHLER")
+        print(ok ? "\nRESULT: OK" : "\nRESULT: FAILED")
         return ok
     }
 }

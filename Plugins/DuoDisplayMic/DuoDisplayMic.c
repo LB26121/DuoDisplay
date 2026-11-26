@@ -1,6 +1,6 @@
 // DuoDisplayMic – a tiny Core Audio loopback driver (AudioServerPlugIn).
 //
-// It publishes one device, "iMac-Mikrofon (DuoDisplay)", with a mono 48 kHz input stream
+// It publishes one device, "iMac Microphone (DuoDisplay)", with a mono 48 kHz input stream
 // (what FaceTime, Zoom & Co. record from) and a matching output stream. The DuoDisplay app
 // plays the microphone audio it receives from the iMac into the output side; everything
 // written there comes back out of the input side, sample-accurately, ~2 IO buffers later.
@@ -28,7 +28,7 @@ enum {
     kObjectID_Stream_Output = 4,
 };
 
-#define kDevice_Name          "iMac-Mikrofon (DuoDisplay)"
+#define kDevice_Name          "iMac Microphone (DuoDisplay)"
 #define kManufacturer_Name    "DuoDisplay"
 #define kDevice_UID           "DuoDisplayMic_UID"
 #define kDevice_ModelUID      "DuoDisplayMic_ModelUID"

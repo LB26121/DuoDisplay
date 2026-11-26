@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 /// The three things both Macs need before anything works: the cable, the pairing and the
-/// Accessibility permission. Shown as one "Voraussetzungen" section in both mode windows.
+/// Accessibility permission. Shown as one "Requirements" section in both mode windows.
 struct RequirementsSection: View {
     let links: [NetLink]
     let pairedName: String?
@@ -19,10 +19,10 @@ struct RequirementsSection: View {
             PairingStatusRow(pairedName: pairedName, unpairedText: unpairedText, onForget: onForget)
             AccessibilityStatusRow(granted: accessibilityGranted, text: accessibilityText)
         } header: {
-            Text("Voraussetzungen")
+            Text("Requirements")
         } footer: {
             if allReady {
-                Label("Alles bereit", systemImage: "checkmark.circle.fill")
+                Label("All set", systemImage: "checkmark.circle.fill")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .symbolRenderingMode(.multicolor)
@@ -44,11 +44,11 @@ struct RoleSection: View {
     var body: some View {
         Section {
             StatusRow(symbol: symbol, color: .gray, title: title, detail: disabledReason ?? detail) {
-                Button("Ändern…", action: onChange)
+                Button("Change…", action: onChange)
                     .disabled(disabledReason != nil)
             }
         } header: {
-            Text("Modus dieses Macs")
+            Text("This Mac’s Role")
         }
     }
 }
@@ -59,20 +59,20 @@ struct ThunderboltStatusRow: View {
     var body: some View {
         if links.isEmpty {
             StatusRow(symbol: "bolt.slash.fill", color: .orange,
-                      title: "Keine Thunderbolt-Verbindung",
-                      detail: "Verbinde beide Macs mit einem Thunderbolt-Kabel. macOS richtet die „Thunderbolt Bridge“ automatisch ein.")
+                      title: "No Thunderbolt connection",
+                      detail: "Connect both Macs with a Thunderbolt cable. macOS sets up the Thunderbolt Bridge automatically.")
         } else {
             HStack(alignment: .center, spacing: 10) {
                 SymbolTile(systemName: "bolt.fill", color: .green)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Thunderbolt verbunden")
+                    Text("Thunderbolt connected")
                     ForEach(links) { link in
                         Text(link.summary)
                             .font(.callout.monospacedDigit())
                             .foregroundStyle(.secondary)
                     }
                     if links.allSatisfy({ $0.mtu < 9000 }) {
-                        Text("Tipp: MTU auf beiden Macs auf „Jumbo (9000)“ stellen – weniger Pakete, noch geringere Latenz.")
+                        Text("Tip: set MTU to “Jumbo (9000)” on both Macs for fewer packets and lower latency.")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -98,13 +98,13 @@ struct PairingStatusRow: View {
     var body: some View {
         if let pairedName {
             StatusRow(symbol: "lock.fill", color: .green,
-                      title: "Gekoppelt mit „\(pairedName)“",
-                      detail: "Nur dieser Mac kann sich verbinden. Tastatur- und Mausdaten gehen verschlüsselt über die Leitung.") {
-                Button("Aufheben…") { confirmForget(pairedName) }
+                      title: "Paired with “\(pairedName)”",
+                      detail: "Only this Mac can connect. All traffic is encrypted.") {
+                Button("Unpair…") { confirmForget(pairedName) }
             }
         } else {
             StatusRow(symbol: "lock.open.fill", color: .orange,
-                      title: "Noch nicht gekoppelt",
+                      title: "Not paired yet",
                       detail: unpairedText)
         }
     }
@@ -114,11 +114,11 @@ struct PairingStatusRow: View {
 private func confirmForgetAlert(_ name: String) -> Bool {
     let alert = NSAlert()
     alert.alertStyle = .warning
-    alert.messageText = "Kopplung mit „\(name)“ aufheben?"
-    alert.informativeText = "Danach müssen beide Macs erneut mit dem 6-stelligen Code gekoppelt werden."
-    let forget = alert.addButton(withTitle: "Kopplung aufheben")
+    alert.messageText = "Unpair from “\(name)”?"
+    alert.informativeText = "Both Macs will need to pair again with the 6-digit code."
+    let forget = alert.addButton(withTitle: "Unpair")
     forget.hasDestructiveAction = true
-    alert.addButton(withTitle: "Abbrechen").keyEquivalent = "\u{1b}"
+    alert.addButton(withTitle: "Cancel").keyEquivalent = "\u{1b}"
     return alert.runModal() == .alertFirstButtonReturn
 }
 
@@ -129,12 +129,12 @@ struct AccessibilityStatusRow: View {
     var body: some View {
         StatusRow(symbol: "keyboard.fill",
                   color: granted ? .green : .orange,
-                  title: granted ? "Bedienungshilfen erlaubt" : "Bedienungshilfen nicht erlaubt",
+                  title: granted ? "Accessibility allowed" : "Accessibility not allowed",
                   detail: granted ? nil : text) {
             if !granted {
                 HStack(spacing: 6) {
-                    Button("Einstellungen öffnen") { Permissions.openAccessibilitySettings() }
-                    Button("Erlauben…") { Permissions.requestAccessibility() }
+                    Button("Open Settings") { Permissions.openAccessibilitySettings() }
+                    Button("Allow…") { Permissions.requestAccessibility() }
                         .buttonStyle(.borderedProminent)
                 }
             }

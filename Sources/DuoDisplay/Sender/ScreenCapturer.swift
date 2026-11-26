@@ -20,13 +20,13 @@ final class ScreenCapturer: NSObject, SCStreamOutput, SCStreamDelegate {
         var target: SCDisplay?
         // A freshly created virtual display needs a moment to show up.
         for _ in 0..<40 {
-            guard !isStopped else { throw DDError("Bildschirmaufnahme abgebrochen") }
+            guard !isStopped else { throw DDError("Screen capture cancelled") }
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
             if let d = content.displays.first(where: { $0.displayID == displayID }) { target = d; break }
             try await Task.sleep(nanoseconds: 100_000_000)
         }
         guard let target else {
-            throw DDError("Der virtuelle Bildschirm ist für ScreenCaptureKit nicht sichtbar.")
+            throw DDError("The virtual display is not visible to ScreenCaptureKit.")
         }
 
         let filter = SCContentFilter(display: target, excludingWindows: [])
@@ -47,7 +47,7 @@ final class ScreenCapturer: NSObject, SCStreamOutput, SCStreamDelegate {
 
         let stream = SCStream(filter: filter, configuration: config, delegate: self)
         try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)
-        guard !isStopped else { throw DDError("Bildschirmaufnahme abgebrochen") }
+        guard !isStopped else { throw DDError("Screen capture cancelled") }
         try await stream.startCapture()
         // stop() during startCapture: nobody else would ever stop this stream.
         let kept = state.withLock { s -> Bool in
@@ -57,7 +57,7 @@ final class ScreenCapturer: NSObject, SCStreamOutput, SCStreamDelegate {
         }
         if !kept {
             try? await stream.stopCapture()
-            throw DDError("Bildschirmaufnahme abgebrochen")
+            throw DDError("Screen capture cancelled")
         }
     }
 

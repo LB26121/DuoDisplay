@@ -2,7 +2,7 @@ import Foundation
 import CoreGraphics
 import os
 
-/// Receiver side, "Normal nutzen" mode: watches (listen-only, never delays input) for the pointer
+/// Receiver side, "Normal Use" mode: watches (listen-only, never delays input) for the pointer
 /// being pushed against the screen edge that faces the MacBook.
 final class EdgeWatcher {
     /// Called on the tap thread with the relative height (0 = top … 1 = bottom) where the pointer left.
@@ -151,7 +151,7 @@ final class EdgeWatcher {
             let alpha = (info[kCGWindowAlpha as String] as? Double) ?? 1
             let layer = (info[kCGWindowLayer as String] as? Int) ?? 0
             if alpha > 0.01 {
-                result.append("\(info[kCGWindowOwnerName as String] as? String ?? "?") (Ebene \(layer), \(Int(bounds.width))×\(Int(bounds.height)))")
+                result.append("\(info[kCGWindowOwnerName as String] as? String ?? "?") (layer \(layer), \(Int(bounds.width))×\(Int(bounds.height)))")
             }
         }
         return result

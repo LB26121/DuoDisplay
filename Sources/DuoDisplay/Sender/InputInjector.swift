@@ -13,7 +13,7 @@ final class InputInjector {
     private var displays: [CGRect] = []
     private var displaysRefreshedNs: UInt64 = 0
     private let source = CGEventSource(stateID: .hidSystemState)
-    /// "Normal nutzen": the edge where the pointer goes back to the receiver (nil = display mode).
+    /// "Normal Use": the edge where the pointer goes back to the receiver (nil = display mode).
     private var exitEdge: ScreenEdge?
     private var exitPush = 0.0
     /// Called (on the injector's queue) when the pointer is pushed out over `exitEdge`,
@@ -97,7 +97,7 @@ final class InputInjector {
             if type == 5, let edge = exitEdge, let fraction = edgeExit(wanted, base: base, dx: dx, edge: edge) {
                 exitEdge = nil
                 let ms = atEdgeSinceNs.map { Double(now &- $0) / 1e6 } ?? -1
-                let info = String(format: "MacBook: %.0f ms am Rand, %d Ereignisse, %d× zurückgesetzt, max. Druck %.1f pt, %d Bildschirm(e), dx %.1f",
+                let info = String(format: "MacBook: %.0f ms at edge, %d events, %d× reset, max. push %.1f pt, %d display(s), dx %.1f",
                                   ms, atEdgeEvents, atEdgeResets, atEdgeMaxPush, displays.count, dx)
                 atEdgeSinceNs = nil
                 onEdgeExit?(fraction, receiverTime, info)

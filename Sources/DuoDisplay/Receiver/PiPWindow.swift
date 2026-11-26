@@ -9,7 +9,7 @@ struct PiPTarget: Equatable {
     var windowID: CGWindowID
 }
 
-/// "Normal nutzen", ⌃⌥⌘P: the MacBook's main screen (mirrored) or an extra screen of it (extended)
+/// "Normal Use", ⌃⌥⌘P: the MacBook's main screen (mirrored) or an extra screen of it (extended)
 /// in a small floating window on this Mac. Title bar to move it and to switch between the two,
 /// sides and corners to resize it (aspect ratio stays that of the MacBook), close button = ⌃⌥⌘P. Never takes focus away from the app in front (non-activating panel).
 /// Moving the pointer into the picture itself hands keyboard and pointer to the MacBook
@@ -62,7 +62,7 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
     private let presenter: MetalPresenter
     private let window: Panel
     private let videoView = VideoView()
-    private let modeControl = TitleBarControl(labels: ["Gespiegelt", "Erweitert"], trackingMode: .selectOne,
+    private let modeControl = TitleBarControl(labels: ["Mirrored", "Extended"], trackingMode: .selectOne,
                                               target: nil, action: nil)
 
     var isVisible: Bool { window.isVisible }
@@ -92,8 +92,8 @@ final class PiPWindowController: NSObject, NSWindowDelegate {
         modeControl.selectedSegment = 0
         modeControl.target = self
         modeControl.action = #selector(modeChanged)
-        modeControl.setToolTip("Den Bildschirm des MacBook zeigen", forSegment: 0)
-        modeControl.setToolTip("Einen zusätzlichen Bildschirm des MacBook zeigen – seine Fenster wandern aufs MacBook, wenn das Bild schließt", forSegment: 1)
+        modeControl.setToolTip("Show the MacBook’s own screen", forSegment: 0)
+        modeControl.setToolTip("Show an extra MacBook display. Its windows move to the MacBook when the picture closes", forSegment: 1)
         modeControl.sizeToFit()
         let holder = NSView(frame: CGRect(x: 0, y: 0, width: modeControl.frame.width + 6, height: modeControl.frame.height))
         modeControl.frame.origin = .zero

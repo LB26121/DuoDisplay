@@ -1,6 +1,6 @@
 // DuoDisplay camera extension (Core Media I/O system extension, runs in its own sandboxed process).
 //
-// Publishes one camera, "iMac-Kamera (DuoDisplay)", with two streams:
+// Publishes one camera, "iMac Camera (DuoDisplay)", with two streams:
 //  • source – what FaceTime, Zoom, Teams … read
 //  • sink   – the DuoDisplay app pushes the decoded iMac camera frames in here
 // Every frame from the sink is forwarded to the source unchanged. While no frames arrive
@@ -63,13 +63,13 @@ final class DeviceSource: NSObject, CMIOExtensionDeviceSource {
         let frameDuration = CMTime(value: 1, timescale: CameraConfig.fps)
         let streamFormat = CMIOExtensionStreamFormat(formatDescription: format, maxFrameDuration: frameDuration,
                                                      minFrameDuration: frameDuration, validFrameDurations: nil)
-        source = StreamSource(name: "iMac-Kamera", id: CameraConfig.sourceUUID, format: streamFormat, sink: false, owner: self)
-        sink = StreamSource(name: "iMac-Kamera Eingang", id: CameraConfig.sinkUUID, format: streamFormat, sink: true, owner: self)
+        source = StreamSource(name: "iMac Camera", id: CameraConfig.sourceUUID, format: streamFormat, sink: false, owner: self)
+        sink = StreamSource(name: "iMac Camera Input", id: CameraConfig.sinkUUID, format: streamFormat, sink: true, owner: self)
         do {
             try device.addStream(source.stream)
             try device.addStream(sink.stream)
         } catch {
-            fatalError("Streams konnten nicht angelegt werden: \(error)")
+            fatalError("Could not create streams: \(error)")
         }
     }
 
@@ -78,7 +78,7 @@ final class DeviceSource: NSObject, CMIOExtensionDeviceSource {
     func deviceProperties(forProperties properties: Set<CMIOExtensionProperty>) throws -> CMIOExtensionDeviceProperties {
         let p = CMIOExtensionDeviceProperties(dictionary: [:])
         if properties.contains(.deviceTransportType) { p.transportType = 0x7669_7274 }   // 'virt'
-        if properties.contains(.deviceModel) { p.model = "DuoDisplay iMac-Kamera" }
+        if properties.contains(.deviceModel) { p.model = "DuoDisplay iMac Camera" }
         return p
     }
 
@@ -233,11 +233,11 @@ final class ProviderSource: NSObject, CMIOExtensionProviderSource {
     init(clientQueue: DispatchQueue?) {
         super.init()
         provider = CMIOExtensionProvider(source: self, clientQueue: clientQueue)
-        deviceSource = DeviceSource(localizedName: "iMac-Kamera (DuoDisplay)")
+        deviceSource = DeviceSource(localizedName: "iMac Camera (DuoDisplay)")
         do {
             try provider.addDevice(deviceSource.device)
         } catch {
-            fatalError("Kamera konnte nicht angelegt werden: \(error)")
+            fatalError("Could not create camera: \(error)")
         }
     }
 

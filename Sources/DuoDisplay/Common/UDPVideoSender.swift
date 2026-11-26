@@ -49,7 +49,7 @@ final class UDPVideoSender {
         self.datagramSize = max(DD.minDatagramSize, min(datagramSize, DD.maxDatagramSize))
 
         guard let resolved = Self.resolve(host, port: port, interface: interface) else {
-            ddLog.error("UDP-Ziel \(String(describing: host), privacy: .public) nicht auflösbar")
+            ddLog.error("Cannot resolve UDP target \(String(describing: host), privacy: .public)")
             return
         }
         var address = resolved.0

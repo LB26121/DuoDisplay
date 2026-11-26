@@ -4,7 +4,7 @@ import Security
 
 /// Pairing: only the one Mac this Mac was paired with may use the control channel.
 ///
-/// First connection ("Verbinden" on the MacBook) – numeric comparison, like Bluetooth:
+/// First connection ("Connect" on the MacBook) – numeric comparison, like Bluetooth:
 ///   MacBook → iMac   hello (device id, nonce)
 ///   iMac → MacBook   pairRequired
 ///   MacBook → iMac   pairStart   SHA-256 commitment to its ephemeral X25519 key A
@@ -23,7 +23,7 @@ import Security
 /// authenticated with per-connection keys (ControlChannel.enableEncryption), and so is every
 /// UDP media datagram, with keys of its own (MediaCrypto).
 ///
-/// A Mac that is already paired does not pair again: a new pairing needs "Kopplung aufheben"
+/// A Mac that is already paired does not pair again: a new pairing needs "Unpair"
 /// first. Otherwise anyone on the network could bring up the prompt on the iMac, and a single
 /// click would replace the real MacBook.
 enum DeviceIdentity {
@@ -85,10 +85,10 @@ final class PairingStore {
             SecItemDelete(Self.query(service) as CFDictionary)
             var add = Self.query(service)
             add[kSecValueData as String] = data
-            add[kSecAttrLabel as String] = "DuoDisplay Kopplung"
+            add[kSecAttrLabel as String] = "DuoDisplay Pairing"
             let status = SecItemAdd(add as CFDictionary, nil)
             guard status == errSecSuccess else {
-                throw DDError("Schlüsselbund-Fehler \(status)")
+                throw DDError("Keychain error \(status)")
             }
         }
         stored = value
@@ -233,7 +233,7 @@ struct ChannelCipher {
     }
 
     mutating func open(_ sealed: Data) throws -> Data {
-        guard sealed.count >= 16 else { throw DDError("Nachricht zu kurz") }
+        guard sealed.count >= 16 else { throw DDError("Message too short") }
         let box = try AES.GCM.SealedBox(nonce: nextNonce(), ciphertext: sealed.dropLast(16), tag: sealed.suffix(16))
         return try AES.GCM.open(box, using: key)
     }

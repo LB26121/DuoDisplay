@@ -11,31 +11,31 @@ enum TransportSelfTest {
     static let frameBytes = 420_000
 
     static func run() -> Bool {
-        print("DuoDisplay Transport-Selbsttest (ProRes-großes Bild, \(frameBytes / 1000) KB, Loopback)\n")
+        print("DuoDisplay transport self-test (ProRes-sized frame, \(frameBytes / 1000) KB, loopback)\n")
         var ok = true
         for datagram in [DD.maxDatagramSize, 1400] {
-            print("▶︎ \(datagram) B/Paket")
+            print("▶︎ \(datagram) B/packet")
             let plain = measurePlain(datagram: datagram)
             let sealed = measureSealed(datagram: datagram)
             let senderOnly = measurePlain(datagram: datagram, sealedBy: .sender)
             let receiverOnly = measurePlain(datagram: datagram, sealedBy: .receiver)
-            if let plain { print("  unverschlüsselt (Referenz):  \(plain.line)") }
-            if let sealed { print("  verschlüsselt (DuoDisplay):  \(sealed.line)") }
+            if let plain { print("  unencrypted (reference): \(plain.line)") }
+            if let sealed { print("  encrypted (DuoDisplay):  \(sealed.line)") }
             if let plain, let sealed {
-                print(String(format: "  Aufschlag durch AES-GCM: Ø %+.3f ms · p50 %+.3f ms (beide Seiten teilen sich hier die Kerne)",
+                print(String(format: "  AES-GCM overhead: avg %+.3f ms · p50 %+.3f ms (both sides share cores here)",
                              sealed.mean - plain.mean, sealed.p50 - plain.p50))
             }
             // Two Macs: each side has its own cores. Measured one side at a time.
             if let plain, let senderOnly, let receiverOnly {
                 let send = senderOnly.mean - plain.mean, receive = receiverOnly.mean - plain.mean
-                print(String(format: "  nur Senden verschlüsselt %+.3f ms · nur Empfang entschlüsselt %+.3f ms → zwischen zwei Macs etwa %+.3f ms",
+                print(String(format: "  send-side encryption only %+.3f ms · receive-side decryption only %+.3f ms → between two Macs ~%+.3f ms",
                              send, receive, send + receive))
             }
             let passed = sealed?.allArrived == true && sealed?.intact == true
-            print("  \(passed ? "✓" : "✗") alle Bilder vollständig und unverändert angekommen")
+            print("  \(passed ? "✓" : "✗") all frames arrived complete and unchanged")
             ok = ok && passed
         }
-        print(ok ? "\nERGEBNIS: OK" : "\nERGEBNIS: FEHLER")
+        print(ok ? "\nRESULT: OK" : "\nRESULT: FAILED")
         return ok
     }
 
@@ -52,7 +52,7 @@ enum TransportSelfTest {
         var mean: Double { total.isEmpty ? 0 : total.reduce(0, +) / Double(total.count) }
         var p50: Double { Self.pct(total, 0.5) }
         var line: String {
-            String(format: "Senden Ø %.3f ms · bis zusammengesetzt Ø %.3f ms (p50 %.3f, p95 %.3f)",
+            String(format: "send avg %.3f ms · to reassembled avg %.3f ms (p50 %.3f, p95 %.3f)",
                    send.isEmpty ? 0 : send.reduce(0, +) / Double(send.count), mean, p50, Self.pct(total, 0.95))
         }
     }

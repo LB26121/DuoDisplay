@@ -1,7 +1,7 @@
 import Foundation
 import CoreAudio
 
-/// The "iMac-Mikrofon (DuoDisplay)" audio device (Plugins/DuoDisplayMic, a loopback HAL driver).
+/// The "iMac Microphone (DuoDisplay)" audio device (Plugins/DuoDisplayMic, a loopback HAL driver).
 /// The app plays the iMac microphone into its output side; apps record it from its input side.
 enum VirtualMic {
     static let deviceUID = "DuoDisplayMic_UID"
@@ -40,7 +40,7 @@ enum VirtualMic {
     /// macOS shows its own administrator password prompt.
     static func install(completion: @escaping (String?) -> Void) {
         guard let bundled = bundledDriver else {
-            completion("Der Treiber fehlt in der App – bitte mit build.sh neu bauen.")
+            completion("The driver is missing from the app. Rebuild with build.sh.")
             return
         }
         func quoted(_ s: String) -> String { "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'" }
@@ -52,11 +52,11 @@ enum VirtualMic {
             "xattr -dr com.apple.quarantine \(quoted(installPath)) 2>/dev/null || true",
             "killall coreaudiod",
         ].joined(separator: " && ")
-        let script = "do shell script \"\(shell.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\""))\" with administrator privileges with prompt \"DuoDisplay möchte das virtuelle iMac-Mikrofon installieren.\""
+        let script = "do shell script \"\(shell.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\""))\" with administrator privileges with prompt \"DuoDisplay wants to install the virtual iMac Microphone.\""
         DispatchQueue.global(qos: .userInitiated).async {
             var error: NSDictionary?
             NSAppleScript(source: script)?.executeAndReturnError(&error)
-            let message = error.map { ($0[NSAppleScript.errorMessage] as? String) ?? "Installation fehlgeschlagen" }
+            let message = error.map { ($0[NSAppleScript.errorMessage] as? String) ?? "Installation failed" }
             DispatchQueue.main.async { completion(message) }
         }
     }

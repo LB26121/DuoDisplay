@@ -60,7 +60,7 @@ final class ClientHandshake {
         switch message.kind {
         case .authChallenge:
             guard let id = message.deviceID, let nonceR = message.nonce, nonceR.count == 32 else {
-                return fail("Ungültige Antwort vom iMac.")
+                return fail("Invalid response from the iMac.")
             }
             peerID = id
             peerName = message.name ?? peerName
@@ -79,14 +79,14 @@ final class ClientHandshake {
                                     PairingCrypto.mediaKeys(key, nonceS: nonce, nonceR: nonceR)))
 
         case .pairRequired:
-            guard let id = message.deviceID, !id.isEmpty else { return fail("Ungültige Antwort vom iMac.") }
+            guard let id = message.deviceID, !id.isEmpty else { return fail("Invalid response from the iMac.") }
             peerID = id
             peerName = message.name ?? peerName
             guard message.mediaCrypto == MediaCrypto.version else { return failVersion(message.mediaCrypto) }
             pairOrStop()
 
         case .authFailed:
-            fail("„\(message.name ?? peerName)“ hat dieses MacBook nicht erkannt – zum neu Koppeln auf beiden Macs „Kopplung aufheben“, dann hier „Verbinden“.")
+            fail("“\(message.name ?? peerName)” didn’t recognize this MacBook. To pair again, choose “Unpair” on both Macs, then “Connect” here.")
 
         case .pairKey:
             guard var ex = exchange, ex.result == nil, let id = peerID, let peerKey = message.publicKey else { return }
@@ -95,7 +95,7 @@ final class ClientHandshake {
                                                       senderID: ownID, receiverID: id,
                                                       senderKey: ex.publicKey, receiverKey: peerKey)
             } catch {
-                return fail("Kopplung fehlgeschlagen (ungültiger Schlüssel).")
+                return fail("Pairing failed (invalid key).")
             }
             exchange = ex
             var reveal = ControlMessage(.pairReveal)
@@ -106,18 +106,18 @@ final class ClientHandshake {
         case .pairConfirm:
             guard var ex = exchange, let result = ex.result else { return }
             guard PairingCrypto.verify(message.mac, result.key, PairingCrypto.Label.confirmReceiver, [result.transcript]) else {
-                return fail("Kopplung fehlgeschlagen: Die Codes stimmen nicht überein.")
+                return fail("Pairing failed: the codes don’t match.")
             }
             ex.peerConfirmed = true
             exchange = ex
             finishPairingIfDone()
 
         case .pairCancel:
-            fail(message.text ?? "Die Kopplung wurde am iMac abgebrochen.")
+            fail(message.text ?? "Pairing was cancelled on the iMac.")
 
         case .ping:
             // An older DuoDisplay on the iMac skips the handshake and starts pinging right away.
-            fail("Auf dem iMac läuft eine ältere DuoDisplay-Version – bitte auf beiden Macs aktualisieren.")
+            fail("The iMac runs an older DuoDisplay version. Please update both Macs.")
 
         default:
             break
@@ -139,7 +139,7 @@ final class ClientHandshake {
         guard exchange != nil else { return }
         exchange = nil
         var cancel = ControlMessage(.pairCancel)
-        cancel.text = "Die Kopplung wurde am MacBook abgebrochen."
+        cancel.text = "Pairing was cancelled on the MacBook."
         channel?.send(cancel)
     }
 
@@ -152,7 +152,7 @@ final class ClientHandshake {
         // Never replace a pairing in passing: a fake "iMac" on the network would otherwise only
         // need one click on this Mac's prompt to receive its screen and control it.
         if let paired = store.peer {
-            return fail("Dieses MacBook ist schon mit „\(paired.name)“ gekoppelt. Zum Koppeln mit „\(peerName)“ hier zuerst „Kopplung aufheben“ wählen, dann „Verbinden“.")
+            return fail("This MacBook is already paired with “\(paired.name)”. To pair with “\(peerName)”, choose “Unpair” here first, then “Connect”.")
         }
         guard exchange == nil, peerID != nil else { return }
         let ex = PairingExchange()
@@ -169,7 +169,7 @@ final class ClientHandshake {
         do {
             try store.save(peer: peer, key: result.key)
         } catch {
-            return fail("Die Kopplung konnte nicht gespeichert werden: \(error.localizedDescription)")
+            return fail("Could not save the pairing: \(error.localizedDescription)")
         }
         onEvent?(.paired(peer))
         // The iMac now sends a fresh authChallenge.
@@ -178,7 +178,7 @@ final class ClientHandshake {
     /// The iMac's media encryption version (nil = before it existed) differs from ours.
     private func failVersion(_ peerVersion: Int?) {
         let older = (peerVersion ?? 0) < MediaCrypto.version
-        fail("Auf „\(peerName)“ läuft eine \(older ? "ältere" : "neuere") DuoDisplay-Version – bitte auf beiden Macs aktualisieren.")
+        fail("“\(peerName)” runs \(older ? "an older" : "a newer") DuoDisplay version. Please update both Macs.")
     }
 
     private func fail(_ text: String) {
@@ -229,13 +229,13 @@ final class ServerHandshake {
         case .hello:
             guard hello == nil else { return }
             guard let id = message.deviceID, !id.isEmpty, let nonce = message.nonce, nonce.count == 32 else {
-                return fail("„\(message.name ?? "Mac")“ nutzt eine ältere DuoDisplay-Version – bitte auf beiden Macs aktualisieren.")
+                return fail("“\(message.name ?? "Mac")” runs an older DuoDisplay version. Please update both Macs.")
             }
             guard message.mediaCrypto == MediaCrypto.version else {
                 // Understands pairCancel, so it can tell the user why.
                 let peerIsOlder = (message.mediaCrypto ?? 0) < MediaCrypto.version
-                return cancelPairing("Auf „\(ownName)“ läuft eine \(peerIsOlder ? "neuere" : "ältere") DuoDisplay-Version – bitte auf beiden Macs aktualisieren.",
-                                     local: "„\(message.name ?? "Mac")“ nutzt eine \(peerIsOlder ? "ältere" : "neuere") DuoDisplay-Version – bitte auf beiden Macs aktualisieren.")
+                return cancelPairing("“\(ownName)” runs \(peerIsOlder ? "a newer" : "an older") DuoDisplay version. Please update both Macs.",
+                                     local: "“\(message.name ?? "Mac")” runs \(peerIsOlder ? "an older" : "a newer") DuoDisplay version. Please update both Macs.")
             }
             hello = message
             if store.key(for: id) != nil {
@@ -256,7 +256,7 @@ final class ServerHandshake {
                 failed.deviceID = ownID
                 failed.name = ownName
                 channel.send(failed)
-                return fail("„\(peer.name)“ konnte sich nicht als gekoppelter Mac ausweisen.")
+                return fail("“\(peer.name)” could not prove it is the paired Mac.")
             }
             let keys = PairingCrypto.sessionKeys(key, nonceS: nonceS, nonceR: nonceR)
             channel.enableEncryption(send: keys.toSender, receive: keys.toReceiver)
@@ -270,14 +270,14 @@ final class ServerHandshake {
             // and a single click would hand them this Mac's keyboard, camera and microphone.
             if let paired = store.peer {
                 if paired.id == peer?.id {
-                    // The paired MacBook itself lost its key ("Kopplung aufheben" only there).
+                    // The paired MacBook itself lost its key ("Unpair" only there).
                     return cancelPairing(
-                        "„\(ownName)“ hat noch die alte Kopplung mit diesem MacBook. Zum neu Koppeln dort ebenfalls „Kopplung aufheben“ wählen.",
-                        local: "Kopplungsanfrage von „\(paired.name)“ abgelehnt – zum neu Koppeln hier zuerst „Kopplung aufheben“ wählen.")
+                        "“\(ownName)” still has the old pairing with this MacBook. To pair again, choose “Unpair” there too.",
+                        local: "Pairing request from “\(paired.name)” refused. To pair again, choose “Unpair” here first.")
                 }
                 return cancelPairing(
-                    "„\(ownName)“ ist schon mit einem anderen Mac gekoppelt. Zum Koppeln dort zuerst „Kopplung aufheben“ wählen.",
-                    local: "Kopplungsanfrage von „\(peer?.name ?? "Mac")“ abgelehnt – dieser Mac ist schon mit „\(paired.name)“ gekoppelt.")
+                    "“\(ownName)” is already paired with another Mac. Choose “Unpair” there first.",
+                    local: "Pairing request from “\(peer?.name ?? "Mac")” refused: this Mac is already paired with “\(paired.name)”.")
             }
             var ex = PairingExchange()
             ex.peerCommit = commit
@@ -291,14 +291,14 @@ final class ServerHandshake {
         case .pairReveal:
             guard var ex = exchange, ex.result == nil, let peer, let peerKey = message.publicKey else { return }
             guard PairingCrypto.commitment(to: peerKey) == ex.peerCommit else {
-                return cancelPairing("Kopplung fehlgeschlagen (ungültige Daten).")
+                return cancelPairing("Pairing failed (invalid data).")
             }
             do {
                 ex.result = try PairingCrypto.pairing(privateKey: ex.privateKey, peerPublicKey: peerKey,
                                                       senderID: peer.id, receiverID: ownID,
                                                       senderKey: peerKey, receiverKey: ex.publicKey)
             } catch {
-                return cancelPairing("Kopplung fehlgeschlagen (ungültiger Schlüssel).")
+                return cancelPairing("Pairing failed (invalid key).")
             }
             exchange = ex
             onEvent?(.pairingCode(code: ex.result!.code, peer: peer))
@@ -306,7 +306,7 @@ final class ServerHandshake {
         case .pairConfirm:
             guard var ex = exchange, let result = ex.result else { return }
             guard PairingCrypto.verify(message.mac, result.key, PairingCrypto.Label.confirmSender, [result.transcript]) else {
-                return cancelPairing("Kopplung fehlgeschlagen: Die Codes stimmen nicht überein.")
+                return cancelPairing("Pairing failed: the codes don’t match.")
             }
             ex.peerConfirmed = true
             exchange = ex
@@ -314,7 +314,7 @@ final class ServerHandshake {
 
         case .pairCancel:
             exchange = nil
-            fail(message.text ?? "Die Kopplung wurde am MacBook abgebrochen.")
+            fail(message.text ?? "Pairing was cancelled on the MacBook.")
 
         default:
             break   // nothing else counts before the MacBook has authenticated itself
@@ -348,7 +348,7 @@ final class ServerHandshake {
         do {
             try store.save(peer: peer, key: result.key)
         } catch {
-            return cancelPairing("Die Kopplung konnte auf dem iMac nicht gespeichert werden: \(error.localizedDescription)")
+            return cancelPairing("Could not save the pairing on the iMac: \(error.localizedDescription)")
         }
         onEvent?(.paired(peer))
         sendChallenge()

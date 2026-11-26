@@ -12,9 +12,9 @@ enum StreamQuality: Int, CaseIterable, Identifiable {
     var scale: Double { [2.0, 1.5, 1.0][rawValue] }
     var label: String {
         switch self {
-        case .retina: return "Retina 2× – gestochen scharf"
-        case .balanced: return "Ausgewogen 1,5× – ca. 3 ms schneller"
-        case .fast: return "Schnell 1× – minimale Latenz"
+        case .retina: return "Retina 2×, razor sharp"
+        case .balanced: return "Balanced 1.5×, ~3 ms faster"
+        case .fast: return "Fast 1×, minimal latency"
         }
     }
 }
@@ -30,7 +30,7 @@ struct StreamSettings {
     var systemAudio: Bool = true   // display mode: MacBook sound plays on the iMac
     var autoReduce: Bool = true    // lower the stream scale when the encoder cannot keep up
     var autoRestore: Bool = true   // …and raise it again once there is enough headroom
-    var edgeSwitch: Bool = true    // "Normal nutzen": iMac pointer crosses over the edge to this Mac
+    var edgeSwitch: Bool = true    // "Normal Use": iMac pointer crosses over the edge to this Mac
 
     /// Edge of the receiver's screen that faces this Mac.
     var receiverEdge: ScreenEdge { receiverOnRight ? .left : .right }
@@ -65,7 +65,7 @@ final class SenderSession: ObservableObject {
     @Published private(set) var phase: Phase = .idle {
         didSet { connectedActivity.set(isConnected) }
     }
-    private let connectedActivity = LatencyActivity(reason: "DuoDisplay ist mit dem iMac verbunden")
+    private let connectedActivity = LatencyActivity(reason: "DuoDisplay is connected to the iMac")
     @Published private(set) var mode: LinkMode = .display
     @Published private(set) var streaming = false
     @Published private(set) var statsLine = ""
@@ -79,9 +79,9 @@ final class SenderSession: ObservableObject {
     }
 
     @Published private(set) var audioLine = ""
-    /// "Normal nutzen": keyboard and pointer of the iMac currently control this Mac.
+    /// "Normal Use": keyboard and pointer of the iMac currently control this Mac.
     @Published private(set) var edgeActive = false
-    /// "Normal nutzen": the iMac shows this Mac's main screen as picture-in-picture (⌃⌥⌘P).
+    /// "Normal Use": the iMac shows this Mac's main screen as picture-in-picture (⌃⌥⌘P).
     @Published private(set) var pipStreaming = false {
         didSet { pipBox.withLock { $0 = pipStreaming } }
     }
@@ -133,7 +133,7 @@ final class SenderSession: ObservableObject {
     private var virtualDisplay: VirtualDisplay?
     private let pipelineBox = OSAllocatedUnfairLock<StreamPipeline?>(initialState: nil)
     private let modeBox = OSAllocatedUnfairLock(initialState: LinkMode.local)   // readable from controlQueue
-    /// "Normal nutzen" and the iMac pointer is on this Mac (input is injected).
+    /// "Normal Use" and the iMac pointer is on this Mac (input is injected).
     private let edgeBox = OSAllocatedUnfairLock(initialState: false)
     private let controlQueue = DispatchQueue(label: "duodisplay.sender.control", qos: .userInteractive)
     private let injector = InputInjector()       // controlQueue only
@@ -275,7 +275,7 @@ final class SenderSession: ObservableObject {
         settings = settingsProvider()
         resetAutoScale()
         if settings.thunderboltOnly && receiver.thunderboltInterface == nil {
-            phase = .failed("„\(receiver.name)“ ist nicht über Thunderbolt erreichbar. Kabel prüfen oder „Nur Thunderbolt“ ausschalten.")
+            phase = .failed("“\(receiver.name)” is not reachable over Thunderbolt. Check the cable or turn off “Connect over Thunderbolt only”.")
             return
         }
         if !isAuto { autoConnectName = receiver.name }
@@ -348,7 +348,7 @@ final class SenderSession: ObservableObject {
                 DispatchQueue.main.async { self.edgeActive = self.edgeBox.withLock { $0 } }
                 if self.control !== channel { self.endEdgeSession(notifyReceiver: false) }
             case .edgeEnter:
-                // Only from the current connection, only in "Normal nutzen" and only if the user
+                // Only from the current connection, only in "Normal Use" and only if the user
                 // still wants it (settings may just have changed).
                 guard let channel, self.control === channel else { return }
                 let settings = self.settingsProvider()
@@ -401,7 +401,7 @@ final class SenderSession: ObservableObject {
             DispatchQueue.main.async {
                 guard let self, let channel, self.control === channel else { return }
                 self.teardown()
-                self.phase = error.map { .failed("Verbindung getrennt: \($0.localizedDescription)") } ?? .idle
+                self.phase = error.map { .failed("Disconnected: \($0.localizedDescription)") } ?? .idle
             }
         }
         control = channel
@@ -411,7 +411,7 @@ final class SenderSession: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self, weak channel] in
             guard let self, let channel, self.control === channel, case .connecting = self.phase else { return }
             self.teardown()
-            self.phase = .failed("Zeitüberschreitung beim Verbinden mit „\(receiver.name)“.")
+            self.phase = .failed("Timed out connecting to “\(receiver.name)”.")
         }
     }
 
@@ -451,9 +451,9 @@ final class SenderSession: ObservableObject {
             teardown()
             autoConnectName = nil   // no automatic retries – pairing needs the user
             if let paired = PairingStore.shared.peer {
-                phase = .failed("„\(peerName)“ erkennt dieses MacBook nicht (gekoppelt ist „\(paired.name)“). Zum neu Koppeln auf beiden Macs „Kopplung aufheben“, dann hier „Verbinden“.")
+                phase = .failed("“\(peerName)” doesn’t recognize this MacBook (paired with “\(paired.name)”). To pair again, choose “Unpair” on both Macs, then “Connect” here.")
             } else {
-                phase = .failed("„\(peerName)“ ist nicht mit diesem MacBook gekoppelt. Zum Koppeln auf „Verbinden“ klicken.")
+                phase = .failed("“\(peerName)” is not paired with this MacBook. Click “Connect” to pair.")
             }
         case .failed(let text):
             teardown()
@@ -468,7 +468,7 @@ final class SenderSession: ObservableObject {
         phase = .idle
     }
 
-    /// Forgets the paired iMac; the next "Verbinden" pairs again.
+    /// Forgets the paired iMac; the next "Connect" pairs again.
     func forgetPairing() {
         PairingStore.shared.forget()
         disconnect()
@@ -516,7 +516,7 @@ final class SenderSession: ObservableObject {
         control.send(ControlMessage(.pipToggle))
     }
 
-    /// "Normal nutzen": tells the receiver which of its screen edges leads here (or that crossing is off).
+    /// "Normal Use": tells the receiver which of its screen edges leads here (or that crossing is off).
     /// Off without the Accessibility permission – input could not be injected, the iMac would be stuck.
     func sendEdgeConfig() {
         guard let control, isConnected else { return }
@@ -637,7 +637,7 @@ final class SenderSession: ObservableObject {
               let pixelW = info.pixelWidth, let pixelH = info.pixelHeight,
               let pointW = info.pointWidth, let pointH = info.pointHeight,
               case let .hostPort(host, _)? = connection.currentPath?.remoteEndpoint else {
-            phase = .failed("Ungültige Antwort vom Empfänger.")
+            phase = .failed("Invalid response from the receiver.")
             teardown()
             return
         }
@@ -680,7 +680,7 @@ final class SenderSession: ObservableObject {
                 name: "DuoDisplay – \(receiverName)", serial: stableHash(receiverName),
                 pixelWidth: displayW, pixelHeight: displayH, pointWidth: pointW, pointHeight: pointH,
                 refreshRate: fps, hiDPI: hiDPI, placeRight: settings.receiverOnRight) else {
-                statsLine = "Der virtuelle Bildschirm konnte nicht erstellt werden."
+                statsLine = "Could not create the virtual display."
                 return
             }
             display = created
@@ -703,7 +703,7 @@ final class SenderSession: ObservableObject {
         pipeline.onError = { [weak self] error in
             DispatchQueue.main.async {
                 guard let self, self.pipelineBox.withLock({ $0 }) === pipeline else { return }
-                self.statsLine = "Bildschirmaufnahme gestoppt: \(error.localizedDescription)"
+                self.statsLine = "Screen capture stopped: \(error.localizedDescription)"
             }
         }
         pipelineBox.withLock { $0 = pipeline }
@@ -723,11 +723,11 @@ final class SenderSession: ObservableObject {
         let link = pathInterface.map { iface -> String in
             onThunderbolt ? "Thunderbolt (\(iface.name))" : iface.name
         } ?? "?"
-        ddLog.notice("Stream startet: \(width)×\(height) @ \(fps) Hz, \(codec.label, privacy: .public)\(codecNote, privacy: .public), Zeiger lokal \(localCursor)")
+        ddLog.notice("Stream starting: \(width)×\(height) @ \(fps) Hz, \(codec.label, privacy: .public)\(codecNote, privacy: .public), local pointer \(localCursor)")
         let rate = codec.isIntraOnly ? "Bitrate automatisch" : "\(Int(settings.bitrateMbps)) Mbit/s"
-        detailBase = "\(width)×\(height) @ \(fps) Hz · \(codec.label)\(codecNote) · \(rate) · \(link) · \(datagram) B/Paket"
-            + (localCursor ? " · Zeiger lokal" : "")
-            + (pipeline.hardwareEncoder ? "" : " · ⚠︎ Software-Encoder")
+        detailBase = "\(width)×\(height) @ \(fps) Hz · \(codec.label)\(codecNote) · \(rate) · \(link) · \(datagram) B/packet"
+            + (localCursor ? " · local pointer" : "")
+            + (pipeline.hardwareEncoder ? "" : " · ⚠︎ software encoder")
         detailLine = detailText()
 
         Task {
@@ -743,7 +743,7 @@ final class SenderSession: ObservableObject {
                     }
                     self.activity = ProcessInfo.processInfo.beginActivity(
                         options: [.userInitiated, .latencyCritical, .idleDisplaySleepDisabled],
-                        reason: "DuoDisplay streamt einen Bildschirm")
+                        reason: "DuoDisplay is streaming a display")
                     self.statsTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
                         self?.updateStats()
                     }
@@ -752,7 +752,7 @@ final class SenderSession: ObservableObject {
                 await MainActor.run {
                     guard self.pipelineBox.withLock({ $0 }) === pipeline else { return }
                     self.stopStream()
-                    self.statsLine = "Bildschirmaufnahme fehlgeschlagen: \(error.localizedDescription) – bitte unter Systemeinstellungen → Datenschutz & Sicherheit → Bildschirm- & Systemaudioaufnahme DuoDisplay erlauben."
+                    self.statsLine = "Screen capture failed: \(error.localizedDescription). Allow DuoDisplay in System Settings → Privacy & Security → Screen & System Audio Recording."
                 }
             }
         }
@@ -766,8 +766,8 @@ final class SenderSession: ObservableObject {
         var codec = settings.codec
         var codecNote = ""
         if codec == .prores {
-            if !onThunderbolt { codec = .hevc; codecNote = " (ProRes nur über Thunderbolt)" }
-            else if !receiverProRes { codec = .hevc; codecNote = " (iMac kann kein ProRes – DuoDisplay dort aktualisieren)" }
+            if !onThunderbolt { codec = .hevc; codecNote = " (ProRes needs Thunderbolt)" }
+            else if !receiverProRes { codec = .hevc; codecNote = " (iMac can’t do ProRes, update DuoDisplay there)" }
         }
         func make(_ codec: VideoCodec) throws -> StreamPipeline {
             try StreamPipeline(codec: codec, width: width, height: height, fps: fps,
@@ -778,18 +778,18 @@ final class SenderSession: ObservableObject {
         do {
             pipeline = try make(codec)
         } catch where codec == .prores {
-            codec = .hevc; codecNote = " (ProRes-Encoder nicht verfügbar)"
+            codec = .hevc; codecNote = " (ProRes encoder unavailable)"
             pipeline = try make(codec)
         }
         if codec == .prores && !pipeline.hardwareEncoder {
             pipeline.cancel()
-            codec = .hevc; codecNote = " (kein ProRes-Hardware-Encoder)"
+            codec = .hevc; codecNote = " (no ProRes hardware encoder)"
             pipeline = try make(codec)
         }
         return (pipeline, codec, codecNote)
     }
 
-    // MARK: Picture-in-picture (⌃⌥⌘P on either Mac, "Normal nutzen")
+    // MARK: Picture-in-picture (⌃⌥⌘P on either Mac, "Normal Use")
 
     /// The iMac opened the picture-in-picture window (or switched it between mirrored and extended):
     /// stream this Mac's main screen, or with `pipExtended` an extra virtual screen of the same size
@@ -804,7 +804,7 @@ final class SenderSession: ObservableObject {
         }
         guard let udpPort = info.udpPort, let session = info.session, let sealer = mediaSealer,
               case let .hostPort(host, _)? = connection.currentPath?.remoteEndpoint else {
-            return fail("Ungültige Anfrage vom iMac.")
+            return fail("Invalid request from the iMac.")
         }
         stopStream()   // also removes the extra screen of an extended picture (its windows move here)
         settings = settingsProvider()
@@ -827,11 +827,11 @@ final class SenderSession: ObservableObject {
         if extended {
             let hiDPI = nativeScale > 1.01
             guard let created = VirtualDisplay(
-                name: "DuoDisplay – Bild-in-Bild", serial: stableHash(receiverName + " PiP"),
+                name: "DuoDisplay – Picture-in-Picture", serial: stableHash(receiverName + " PiP"),
                 pixelWidth: hiDPI ? pointW * 2 : pointW, pixelHeight: hiDPI ? pointH * 2 : pointH,
                 pointWidth: pointW, pointHeight: pointH, refreshRate: fps, hiDPI: hiDPI,
                 placeRight: !settings.receiverOnRight) else {
-                return fail("Der zusätzliche Bildschirm für das Bild-in-Bild konnte nicht erstellt werden.")
+                return fail("Could not create the extra display for picture-in-picture.")
             }
             virtualDisplay = created
             displayKey = nil   // never reused by the display mode
@@ -861,7 +861,7 @@ final class SenderSession: ObservableObject {
             DispatchQueue.main.async {
                 guard let self, self.pipelineBox.withLock({ $0 }) === pipeline else { return }
                 self.stopStream()
-                fail("Bildschirmaufnahme gestoppt: \(error.localizedDescription)")
+                fail("Screen capture stopped: \(error.localizedDescription)")
             }
         }
         pipelineBox.withLock { $0 = pipeline }
@@ -875,8 +875,8 @@ final class SenderSession: ObservableObject {
             cursorTracking = localCursor
         }
         let kind = extended ? "erweitert" : "gespiegelt"
-        ddLog.notice("Bild-in-Bild startet (\(kind, privacy: .public)): \(width)×\(height) @ \(fps) Hz, \(codec.label, privacy: .public)\(codecNote, privacy: .public), Zeiger lokal \(localCursor)")
-        detailLine = "Bild-in-Bild auf \(receiverName) (\(kind)): \(width)×\(height) @ \(fps) Hz · \(codec.label)\(codecNote)"
+        ddLog.notice("Picture-in-picture starting (\(kind, privacy: .public)): \(width)×\(height) @ \(fps) Hz, \(codec.label, privacy: .public)\(codecNote, privacy: .public), local pointer \(localCursor)")
+        detailLine = "Picture-in-picture on \(receiverName) (\(kind)): \(width)×\(height) @ \(fps) Hz · \(codec.label)\(codecNote)"
 
         Task {
             do {
@@ -898,7 +898,7 @@ final class SenderSession: ObservableObject {
                 await MainActor.run {
                     guard self.pipelineBox.withLock({ $0 }) === pipeline else { return }
                     self.stopStream()
-                    fail("Bildschirmaufnahme fehlgeschlagen: \(error.localizedDescription) – auf dem MacBook unter Datenschutz & Sicherheit → Bildschirm- & Systemaudioaufnahme DuoDisplay erlauben.")
+                    fail("Screen capture failed: \(error.localizedDescription). On the MacBook, allow DuoDisplay in Privacy & Security → Screen & System Audio Recording.")
                 }
             }
         }
@@ -908,8 +908,8 @@ final class SenderSession: ObservableObject {
 
     private func detailText() -> String {
         guard autoScaleCap != nil, streamScale < maxStreamScale - 0.01 else { return detailBase }
-        return detailBase + String(format: " · automatisch auf %.1f× reduziert (Encoder zu langsam)", streamScale)
-            + (settings.autoRestore ? " – geht wieder hoch, sobald es reicht" : "")
+        return detailBase + String(format: " · reduced to %.1f× (encoder too slow)", streamScale)
+            + (settings.autoRestore ? ", raises again when possible" : "")
     }
 
     // MARK: Sound → iMac
@@ -925,11 +925,11 @@ final class SenderSession: ObservableObject {
             try tap.start()
             audioTap = tap
             audioSender = sender
-            audioLine = "Ton läuft über \(receiverName) – das MacBook ist so lange stumm."
+            audioLine = "Sound plays on \(receiverName); the MacBook is muted meanwhile."
             sendAudioRoute(true)
         } catch {
             sender.cancel()
-            audioLine = "Ton bleibt auf dem MacBook: \(error.localizedDescription)"
+            audioLine = "Sound stays on the MacBook: \(error.localizedDescription)"
         }
     }
 
@@ -949,7 +949,7 @@ final class SenderSession: ObservableObject {
         control?.send(message)
     }
 
-    /// The "Ton über den iMac" toggle changed: start or stop the sound transfer of the running
+    /// The "Play sound on the iMac" toggle changed: start or stop the sound transfer of the running
     /// stream right away (the video keeps running).
     func systemAudioChanged() {
         let wanted = settingsProvider().systemAudio
@@ -972,12 +972,12 @@ final class SenderSession: ObservableObject {
         let pipelineMs = s.frames > 0 ? Double(s.pipelineNsSum) / Double(s.frames) / 1_000_000 : 0
         var line = String(format: "%d fps · %.1f Mbit/s · Encoder %.1f ms", s.frames, mbps, encodeMs)
         if s.frames > 0 {
-            line += String(format: " · Aufnahme %.1f ms · bis gesendet %.1f ms", captureMs, pipelineMs)
+            line += String(format: " · capture %.1f ms · to sent %.1f ms", captureMs, pipelineMs)
         }
-        if s.skipped > 0 { line += " · \(s.skipped) übersprungen" }
+        if s.skipped > 0 { line += " · \(s.skipped) skipped" }
         if let r = remoteStats, let latency = r.latencyMs {
-            line += String(format: " · Aufnahme→Bild %.1f ms (max %.1f)", latency, r.latencyMaxMs ?? latency)
-            if let lost = r.lost, lost > 0 { line += " · \(lost) verloren" }
+            line += String(format: " · capture→frame %.1f ms (max %.1f)", latency, r.latencyMaxMs ?? latency)
+            if let lost = r.lost, lost > 0 { line += " · \(lost) lost" }
         }
         statsLine = line
         ddLog.notice("Senden: \(line, privacy: .public)")
@@ -1006,7 +1006,7 @@ final class SenderSession: ObservableObject {
             }
             lastAutoRaise = nil
             autoScaleCap = lower
-            ddLog.notice("Encoder \(encodeMs, privacy: .public) ms – Stream automatisch auf \(lower, privacy: .public)× reduziert")
+            ddLog.notice("Encoder \(encodeMs, privacy: .public) ms, stream reduced to \(lower, privacy: .public)×")
             settingsChanged()
             return
         }
@@ -1025,7 +1025,7 @@ final class SenderSession: ObservableObject {
             fastSeconds = 0
             autoScaleCap = higher >= maxStreamScale - 0.01 ? nil : higher
             lastAutoRaise = Date()
-            ddLog.notice("Encoder \(encodeMs, privacy: .public) ms – Stream automatisch wieder auf \(higher, privacy: .public)× erhöht")
+            ddLog.notice("Encoder \(encodeMs, privacy: .public) ms, stream raised back to \(higher, privacy: .public)×")
             settingsChanged()
         }
     }

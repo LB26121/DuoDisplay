@@ -50,7 +50,7 @@ enum CA {
     }
 
     static func check(_ status: OSStatus, _ what: String) throws {
-        guard status == noErr else { throw DDError("\(what) fehlgeschlagen (\(fourCC(status)))") }
+        guard status == noErr else { throw DDError("Failed to \(what) (\(fourCC(status)))") }
     }
 
     /// Readable OSStatus: 'abcd' when it is a four-char code, otherwise the number.

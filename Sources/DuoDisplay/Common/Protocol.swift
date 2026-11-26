@@ -107,7 +107,7 @@ struct ControlMessage: Codable {
         case edgeEnter      // receiver → sender: pointer crossed over at `fraction`; input events follow
         case edgeLeave      // sender → receiver: pointer came back at `fraction` (+ `eventTime`);
                             // receiver → sender: input taken back (⌃⌥⌘D / timeout), stop injecting
-        // picture-in-picture ("Normal nutzen"): the MacBook's own main screen in a window on the iMac
+        // picture-in-picture ("Normal Use"): the MacBook's own main screen in a window on the iMac
         case pipStart       // receiver → sender: stream the main screen (udpPort, session, mtu, proRes, refreshRate),
                             // or with `pipExtended` an extra virtual screen; sent again to switch between the two
         case pipStop        // receiver → sender: window closed, stop that stream
@@ -135,7 +135,7 @@ struct ControlMessage: Codable {
     var microphone: Bool?
     var audio: Bool?
     var text: String?
-    // edge switching ("Normal nutzen")
+    // edge switching ("Normal Use")
     var edge: ScreenEdge?
     var fraction: Double?
     /// edgeLeave from the sender: the receiver's own timestamp of the forwarded event that pushed the

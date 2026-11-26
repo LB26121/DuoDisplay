@@ -36,7 +36,7 @@ final class VideoEncoder {
             if status == noErr, created != nil { lowLatencyMode = lowLatency; break }
         }
         guard status == noErr, let session = created else {
-            throw DDError("Video-Encoder (\(codec.label) \(width)×\(height)) konnte nicht erstellt werden: \(status)")
+            throw DDError("Could not create video encoder (\(codec.label) \(width)×\(height)): \(status)")
         }
         self.session = session
 

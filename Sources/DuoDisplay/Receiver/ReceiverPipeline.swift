@@ -12,7 +12,7 @@ struct ReceiverStats {
     var line: String {
         var s = String(format: "%.0f fps · %.1f Mbit/s", fps, mbps)
         if let latencyMs {
-            s += String(format: " · Aufnahme→Bild Ø %.1f ms (max %.1f)", latencyMs, latencyMaxMs ?? latencyMs)
+            s += String(format: " · capture→frame avg %.1f ms (max %.1f)", latencyMs, latencyMaxMs ?? latencyMs)
         }
         s += " · Verluste \(lost) · Keyframe-Anfragen \(keyframeRequests)"
         return s
