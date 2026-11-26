@@ -257,3 +257,11 @@ build/DuoDisplay.app/Contents/MacOS/DuoDisplay --transporttest  # nur das Netz: 
 build/DuoDisplay.app/Contents/MacOS/DuoDisplay --rendertest --window  # Empfang im echten Fenster (60 fps + Zeiger mit 480 Hz, dann 120 fps): Verzögerung darf sich nicht aufstauen, Zeiger-Ebene sitzt richtig (mit --prores: ProRes statt HEVC)
 build/DuoDisplay.app/Contents/MacOS/DuoDisplay --uisnapshot build/ui-snapshots  # alle Fenster (Modus-Wahl, MacBook, iMac, Kopplungscode) hell und dunkel als PNG, ohne zu verbinden
 ```
+
+## Mitwirken
+
+Beiträge sind willkommen, besonders Tests mit zwei echten Macs. Wie du baust, testest und Änderungen einreichst, steht in [CONTRIBUTING.md](CONTRIBUTING.md). Sicherheitslücken bitte nicht öffentlich melden, sondern wie in [SECURITY.md](SECURITY.md) beschrieben. Es gilt der [Code of Conduct](CODE_OF_CONDUCT.md). Änderungen je Version stehen im [CHANGELOG](CHANGELOG.md).
+
+## Lizenz
+
+[MIT](LICENSE). DuoDisplay nutzt private Apple-APIs (`CGVirtualDisplay`, eine WindowServer-Einstellung). Deshalb kann es nicht in den Mac App Store.

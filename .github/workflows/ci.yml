@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    # The UI uses Liquid Glass APIs, so the macOS 26 SDK (Xcode 26) is required to compile.
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      APP: build/DuoDisplay.app/Contents/MacOS/DuoDisplay
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          xcode-select -p
+          xcrun --sdk macosx --show-sdk-version
+          swift --version
+
+      - name: Build (ad-hoc signed)
+        run: ./build.sh
+
+      # Pure logic and loopback networking: must pass.
+      - name: Input test
+        run: $APP --inputtest
+      - name: Pairing and encryption test
+        run: $APP --pairtest
+      - name: Edge switch and picture-in-picture geometry test
+        run: $APP --edgetest
+      - name: Transport test
+        run: $APP --transporttest
+
+      # Need a hardware video encoder, audio devices or a window server, which hosted runners
+      # may not provide. Failures here are reported but don't fail the build.
+      - name: Media test (best effort)
+        continue-on-error: true
+        timeout-minutes: 5
+        run: $APP --mediatest
+      - name: Video pipeline test (best effort)
+        continue-on-error: true
+        timeout-minutes: 5
+        run: $APP --selftest
+      - name: Virtual display test (best effort)
+        continue-on-error: true
+        timeout-minutes: 5
+        run: $APP --displaytest
+
+      # Zipped with ditto: upload-artifact would drop the executable bits and bundle metadata.
+      - name: Package app
+        run: ditto -c -k --keepParent build/DuoDisplay.app build/DuoDisplay.zip
+      - name: Upload app
+        uses: actions/upload-artifact@v4
+        with:
+          name: DuoDisplay-adhoc-${{ github.sha }}
+          path: build/DuoDisplay.zip
+          retention-days: 7
