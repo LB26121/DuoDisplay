@@ -16,7 +16,17 @@ In Second Display mode the MacBook's **sound** plays on the iMac. The MacBook al
 
 The same app runs on both Macs. It lives in the menu bar and appears in the Dock only while its window is open.
 
-## Build
+## Install
+
+On both Macs:
+
+```bash
+brew install --cask lb26121/duodisplay/duodisplay
+```
+
+Or download `DuoDisplay-<version>.zip` from [Releases](https://github.com/LB26121/DuoDisplay/releases), unzip it and move `DuoDisplay.app` to `/Applications`. Releases are universal (Apple silicon and Intel), signed with a Developer ID and notarized, so they open without warnings and include the virtual camera. Requires macOS 14 or later.
+
+## Build from source
 
 Needs macOS 14+ and the Command Line Tools (Xcode optional):
 
@@ -38,7 +48,7 @@ xattr -dr com.apple.quarantine /Applications/DuoDisplay.app
 4. **MacBook:** open DuoDisplay → *Extend Display*, set *iMac position* to *Right*, click **Connect** next to the iMac.
 5. **Pair:** both Macs show a 6-digit code. If they match, click **Pair** on both. From now on the MacBook connects automatically (in *Normal Use*). A Mac that is already paired refuses new pairings: *Unpair* it first.
 6. **Microphone** (MacBook): *Sound, Camera & Microphone* → *iMac Microphone* → **Install…** (asks for an admin password).
-7. **Camera** (MacBook): *iMac Camera* → **Activate…**, then allow it in System Settings → General → Login Items & Extensions → Camera Extensions. Requires an Apple Developer signature, see [Virtual camera](#virtual-camera).
+7. **Camera** (MacBook): *iMac Camera* → **Activate…**, then allow it in System Settings → General → Login Items & Extensions → Camera Extensions. Release builds include it; your own builds need an Apple Developer signature, see [Virtual camera](#virtual-camera).
 8. **iMac:** under *Camera & Microphone for the MacBook*, allow camera and microphone.
 
 **Uninstall the microphone driver:**
@@ -68,6 +78,7 @@ The app shows what is missing and offers a button to grant it.
 
 - Remove: `security delete-keychain ~/Library/Keychains/duodisplay-signing.keychain-db` and delete `~/Library/Application Support/DuoDisplay`.
 - Use your own certificate: `SIGN_IDENTITY="Apple Development: …" ./build.sh`.
+- **Release** (maintainers): `RELEASE=1 ./build.sh` builds a universal app with bundle ID `io.github.lb26121.DuoDisplay`, signs it with the *Developer ID Application* certificate (hardened runtime), notarizes and staples it, and writes `build/DuoDisplay-<version>.zip`. The version comes from the latest `v*` tag. Profiles: `DuoDisplay_DeveloperID.provisionprofile` and `DuoDisplay_Camera_DeveloperID.provisionprofile` in `~/Library/Application Support/DuoDisplay/developer-id/`. Notarization uses the `notarytool` keychain profile `duodisplay-notary`, or `NOTARY_KEY`, `NOTARY_KEY_ID` and `NOTARY_ISSUER`. Pushing a `v*` tag runs the same build in [release.yml](.github/workflows/release.yml), publishes the GitHub Release and updates the cask in [homebrew-duodisplay](https://github.com/LB26121/homebrew-duodisplay).
 
 ### Virtual camera
 

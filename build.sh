@@ -16,12 +16,34 @@
 #   CAMERA_PROFILE=~/Downloads/DuoDisplayCamera.provisionprofile \
 #   ./build.sh
 # Optional: TEAM_ID (otherwise read from the certificate), BUNDLE_ID (default local.duodisplay.DuoDisplay).
+#
+# Release (what GitHub Releases and the Homebrew cask ship):
+#   RELEASE=1 ./build.sh
+# Universal binary, Developer ID signature with hardened runtime, notarized and stapled, zipped
+# to build/DuoDisplay-<version>.zip. Defaults: the first "Developer ID Application" identity, the
+# profiles in ~/Library/Application Support/DuoDisplay/developer-id/, BUNDLE_ID
+# io.github.lb26121.DuoDisplay, version from the latest git tag (vX.Y), notarytool keychain
+# profile "duodisplay-notary". In CI pass NOTARY_KEY (.p8 path), NOTARY_KEY_ID and NOTARY_ISSUER
+# instead. NOTARIZE=0 skips notarization.
 set -euo pipefail
 cd "$(dirname "$0")"
 
+RELEASE="${RELEASE:-0}"
+if [[ $RELEASE == 1 ]]; then
+    REL_DIR="$HOME/Library/Application Support/DuoDisplay/developer-id"
+    SIGN_IDENTITY="${SIGN_IDENTITY:-$(security find-identity -v -p codesigning | awk -F'"' '/Developer ID Application:/ {print $2; exit}')}"
+    [[ -n "$SIGN_IDENTITY" ]] || { echo "✗ No valid “Developer ID Application” identity in the keychain"; exit 1; }
+    APP_PROFILE="${APP_PROFILE:-$REL_DIR/DuoDisplay_DeveloperID.provisionprofile}"
+    CAMERA_PROFILE="${CAMERA_PROFILE:-$REL_DIR/DuoDisplay_Camera_DeveloperID.provisionprofile}"
+    for p in "$APP_PROFILE" "$CAMERA_PROFILE"; do [[ -f "$p" ]] || { echo "✗ Missing $p"; exit 1; }; done
+    BUNDLE_ID="${BUNDLE_ID:-io.github.lb26121.DuoDisplay}"
+    VERSION="${VERSION:-$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null | sed 's/^v//' || true)}"
+    BUILD_NUMBER="${BUILD_NUMBER:-$(git rev-list --count HEAD 2>/dev/null || echo 1)}"
+fi
+
 # Defaults from the one-time Apple Developer setup (see README), if present.
 DEV_DIR="$HOME/Library/Application Support/DuoDisplay/apple-dev"
-if [[ -z "${SIGN_IDENTITY:-}" && -f "$DEV_DIR/DuoDisplay_Development.provisionprofile" ]]; then
+if [[ $RELEASE != 1 && -z "${SIGN_IDENTITY:-}" && -f "$DEV_DIR/DuoDisplay_Development.provisionprofile" ]]; then
     DEV_IDENTITY="$(security find-identity -v -p codesigning | awk -F'"' '/Apple Development:/ {print $2; exit}')"
     if [[ -n "$DEV_IDENTITY" ]]; then
         SIGN_IDENTITY="$DEV_IDENTITY"
@@ -33,7 +55,14 @@ fi
 BUNDLE_ID="${BUNDLE_ID:-local.duodisplay.DuoDisplay}"
 CAMERA_ID="$BUNDLE_ID.CameraExtension"
 
-swift build -c release
+ARCH_ARGS=()
+CS_FLAGS=(--timestamp=none)
+if [[ $RELEASE == 1 ]]; then
+    ARCH_ARGS=(--arch arm64 --arch x86_64)   # Intel iMacs are common Target Display Mode hosts
+    CS_FLAGS=(--options runtime --timestamp)  # both required for notarization
+fi
+swift build -c release ${ARCH_ARGS[@]+"${ARCH_ARGS[@]}"}
+BIN_DIR="$(swift build -c release ${ARCH_ARGS[@]+"${ARCH_ARGS[@]}"} --show-bin-path)"
 
 # SwiftPM writes the deployment target (14.0) into the binary as its SDK version as well. macOS then
 # runs the app in compatibility mode with the pre-Liquid Glass look (old window buttons, title bar
@@ -44,10 +73,13 @@ stamp_sdk() { vtool -set-build-version macos 14.0 "$SDK_VERSION" -replace -outpu
 APP="build/DuoDisplay.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp .build/release/DuoDisplay "$APP/Contents/MacOS/DuoDisplay"
+cp "$BIN_DIR/DuoDisplay" "$APP/Contents/MacOS/DuoDisplay"
 stamp_sdk "$APP/Contents/MacOS/DuoDisplay"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 plutil -replace CFBundleIdentifier -string "$BUNDLE_ID" "$APP/Contents/Info.plist"
+[[ -n "${VERSION:-}" ]] && plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP/Contents/Info.plist"
+[[ -n "${BUILD_NUMBER:-}" ]] && plutil -replace CFBundleVersion -string "$BUILD_NUMBER" "$APP/Contents/Info.plist"
+VERSION="$(plutil -extract CFBundleShortVersionString raw "$APP/Contents/Info.plist")"
 
 # App icon (Liquid Glass, Resources/AppIcon.icon – editable with Icon Composer). Compiled with
 # Xcode's actool when available, otherwise the precompiled copy in Resources/AppIconCompiled is used.
@@ -86,8 +118,12 @@ cp Plugins/DuoDisplayMic/Info.plist "$DRIVER/Contents/Info.plist"
 clang -bundle -O2 -Wall -mmacosx-version-min=14.0 -arch arm64 -arch x86_64 \
     -framework CoreAudio -framework CoreFoundation \
     -o "$DRIVER/Contents/MacOS/DuoDisplayMic" Plugins/DuoDisplayMic/DuoDisplayMic.c
-# Ad-hoc: coreaudiod loads it like any locally built driver (e.g. BlackHole built from source).
-codesign --force --sign - --timestamp=none "$DRIVER"
+if [[ $RELEASE == 1 ]]; then
+    codesign --force "${SIGN_ARGS[@]}" "${CS_FLAGS[@]}" "$DRIVER"   # notarization checks nested code
+else
+    # Ad-hoc: coreaudiod loads it like any locally built driver (e.g. BlackHole built from source).
+    codesign --force --sign - --timestamp=none "$DRIVER"
+fi
 
 # --- Virtual camera: Core Media I/O system extension ---
 TEAM_ID="${TEAM_ID:-}"
@@ -100,11 +136,14 @@ CAMERA_SIGNED=0
 if [[ -n "${SIGN_IDENTITY:-}" && -n "${APP_PROFILE:-}" && -n "${CAMERA_PROFILE:-}" && -n "$TEAM_ID" ]]; then
     CAMERA_SIGNED=1
 fi
+if [[ $RELEASE == 1 && $CAMERA_SIGNED != 1 ]]; then
+    echo "✗ Release builds must include the signed camera extension (team ID not found for $SIGN_IDENTITY)"; exit 1
+fi
 EXT_TEAM="${TEAM_ID:-LOCAL}"
 
 EXT="$APP/Contents/Library/SystemExtensions/$CAMERA_ID.systemextension"
 mkdir -p "$EXT/Contents/MacOS"
-cp .build/release/DuoDisplayCamera "$EXT/Contents/MacOS/$CAMERA_ID"
+cp "$BIN_DIR/DuoDisplayCamera" "$EXT/Contents/MacOS/$CAMERA_ID"
 stamp_sdk "$EXT/Contents/MacOS/$CAMERA_ID"
 sed -e "s/__BUNDLE_ID__/$BUNDLE_ID/g" -e "s/__TEAM_ID__/$EXT_TEAM/g" \
     Plugins/CameraExtension/Info.plist > "$EXT/Contents/Info.plist"
@@ -129,7 +168,8 @@ if [[ $CAMERA_SIGNED == 1 ]]; then
         fi
         local udid
         udid="$(system_profiler SPHardwareDataType 2>/dev/null | awk -F': ' '/Provisioning UDID/ {print $2}')"
-        if [[ -n "$udid" ]] && ! /usr/libexec/PlistBuddy -c 'Print :ProvisionedDevices' "$plist" 2>/dev/null | grep -q "$udid"; then
+        if [[ -n "$udid" ]] && [[ "$(/usr/libexec/PlistBuddy -c 'Print :ProvisionsAllDevices' "$plist" 2>/dev/null)" != true ]] \
+                && ! /usr/libexec/PlistBuddy -c 'Print :ProvisionedDevices' "$plist" 2>/dev/null | grep -q "$udid"; then
             echo "⚠︎ $(basename "$1") doesn’t include this Mac ($udid), so the app won’t start here."
         fi
     }
@@ -145,17 +185,46 @@ if [[ $CAMERA_SIGNED == 1 ]]; then
 
     cp "$CAMERA_PROFILE" "$EXT/Contents/embedded.provisionprofile"
     cp "$APP_PROFILE" "$APP/Contents/embedded.provisionprofile"
-    codesign --force "${SIGN_ARGS[@]}" --timestamp=none --entitlements "$TMP_ENT/camera.entitlements" "$EXT"
-    codesign --force "${SIGN_ARGS[@]}" --timestamp=none --entitlements "$TMP_ENT/app.entitlements" "$APP"
+    codesign --force "${SIGN_ARGS[@]}" "${CS_FLAGS[@]}" --entitlements "$TMP_ENT/camera.entitlements" "$EXT"
+    codesign --force "${SIGN_ARGS[@]}" "${CS_FLAGS[@]}" --entitlements "$TMP_ENT/app.entitlements" "$APP"
     CAMERA_NOTE="Virtual camera: signed for team $TEAM_ID. Copy to /Applications and activate it in the app."
 else
     # Without a provisioning profile the restricted install entitlement would stop the app from
     # launching, so the extension is only bundled; activating it will be refused by macOS.
-    codesign --force "${SIGN_ARGS[@]}" --timestamp=none --entitlements "$TMP_ENT/camera.entitlements" "$EXT"
-    codesign --force "${SIGN_ARGS[@]}" --timestamp=none --entitlements Resources/DuoDisplay.entitlements "$APP"
+    codesign --force "${SIGN_ARGS[@]}" "${CS_FLAGS[@]}" --entitlements "$TMP_ENT/camera.entitlements" "$EXT"
+    codesign --force "${SIGN_ARGS[@]}" "${CS_FLAGS[@]}" --entitlements Resources/DuoDisplay.entitlements "$APP"
     CAMERA_NOTE="Virtual camera: unavailable (needs SIGN_IDENTITY, APP_PROFILE, CAMERA_PROFILE, see README). Sound and microphone work."
 fi
 
 echo "Signed with: $SIGNED_WITH"
+
+if [[ $RELEASE == 1 ]]; then
+    codesign --verify --deep --strict "$APP"
+    ZIP="build/DuoDisplay-$VERSION.zip"
+    rm -f "$ZIP"
+    if [[ "${NOTARIZE:-1}" == 1 ]]; then
+        if [[ -n "${NOTARY_KEY:-}" ]]; then
+            NOTARY_ARGS=(--key "$NOTARY_KEY" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER")
+        else
+            NOTARY_ARGS=(--keychain-profile "${NOTARY_PROFILE:-duodisplay-notary}")
+        fi
+        ditto -c -k --keepParent "$APP" "$ZIP"
+        echo "Notarizing (usually a few minutes)…"
+        RESULT="$(xcrun notarytool submit "$ZIP" "${NOTARY_ARGS[@]}" --wait --output-format json)"
+        STATUS="$(plutil -extract status raw - <<<"$RESULT")"
+        if [[ "$STATUS" != Accepted ]]; then
+            echo "✗ Notarization: $STATUS"
+            xcrun notarytool log "$(plutil -extract id raw - <<<"$RESULT")" "${NOTARY_ARGS[@]}" || true
+            exit 1
+        fi
+        xcrun stapler staple "$APP"
+        rm -f "$ZIP"
+        spctl --assess --type execute "$APP"
+        echo "Notarized and stapled; Gatekeeper accepts it."
+    fi
+    ditto -c -k --keepParent "$APP" "$ZIP"
+    echo "Release: $(pwd)/$ZIP (version $VERSION)"
+    echo "sha256:  $(shasum -a 256 "$ZIP" | cut -d' ' -f1)"
+fi
 echo "$CAMERA_NOTE"
 echo "Done: $(pwd)/$APP"

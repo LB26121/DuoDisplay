@@ -1,0 +1,132 @@
+name: Release
+
+# Pushing a tag vX.Y builds a universal, Developer ID signed and notarized DuoDisplay.app,
+# publishes it as a GitHub Release and updates the Homebrew cask in LB26121/homebrew-duodisplay.
+# Running it by hand (workflow_dispatch) does the same build but only uploads the zip as a
+# workflow artifact: a dry run that publishes nothing.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write   # create the GitHub Release
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-26
+    timeout-minutes: 90   # a notarization can take a while
+    env:
+      APP: build/DuoDisplay.app/Contents/MacOS/DuoDisplay
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # version from the tag, build number from the commit count
+
+      - name: Install signing certificate and profiles
+        env:
+          P12_BASE64: ${{ secrets.DEVELOPER_ID_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+          APP_PROFILE_BASE64: ${{ secrets.APP_PROFILE_BASE64 }}
+          CAMERA_PROFILE_BASE64: ${{ secrets.CAMERA_PROFILE_BASE64 }}
+          NOTARY_KEY_BASE64: ${{ secrets.NOTARY_KEY_BASE64 }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PW="$(openssl rand -base64 24)"
+          security create-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          base64 --decode <<<"$P12_BASE64" > "$RUNNER_TEMP/devid.p12"
+          security import "$RUNNER_TEMP/devid.p12" -k "$KEYCHAIN" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/devid.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PW" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          security find-identity -v -p codesigning
+
+          base64 --decode <<<"$APP_PROFILE_BASE64" > "$RUNNER_TEMP/app.provisionprofile"
+          base64 --decode <<<"$CAMERA_PROFILE_BASE64" > "$RUNNER_TEMP/camera.provisionprofile"
+          base64 --decode <<<"$NOTARY_KEY_BASE64" > "$RUNNER_TEMP/notary.p8"
+          echo "KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+
+      - name: Build, sign and notarize
+        env:
+          RELEASE: 1
+          APP_PROFILE: ${{ runner.temp }}/app.provisionprofile
+          CAMERA_PROFILE: ${{ runner.temp }}/camera.provisionprofile
+          NOTARY_KEY: ${{ runner.temp }}/notary.p8
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+        run: ./build.sh
+
+      - name: Tests
+        run: |
+          $APP --inputtest
+          $APP --pairtest
+          $APP --edgetest
+          $APP --transporttest
+
+      - name: Find the zip
+        id: zip
+        run: |
+          ZIP="$(ls build/DuoDisplay-*.zip)"
+          VERSION="$(plutil -extract CFBundleShortVersionString raw build/DuoDisplay.app/Contents/Info.plist)"
+          echo "path=$ZIP" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(shasum -a 256 "$ZIP" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload zip (dry run)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: DuoDisplay-${{ steps.zip.outputs.version }}-dry-run
+          path: ${{ steps.zip.outputs.path }}
+          retention-days: 7
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.zip.outputs.version }}
+          ZIP: ${{ steps.zip.outputs.path }}
+          SHA256: ${{ steps.zip.outputs.sha256 }}
+        run: |
+          # Release notes: this version's section of the CHANGELOG.
+          awk -v v="$VERSION" '/^## \[/ { if (found) exit; if (index($0, "## [" v "]") == 1) { found = 1; next } } found' \
+              CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          printf '\n---\nInstall: `brew install --cask lb26121/duodisplay/duodisplay`\n\nsha256 `%s`\n' "$SHA256" >> "$RUNNER_TEMP/notes.md"
+          gh release create "$GITHUB_REF_NAME" "$ZIP" --title "DuoDisplay $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
+
+      - name: Update Homebrew cask
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+          VERSION: ${{ steps.zip.outputs.version }}
+          SHA256: ${{ steps.zip.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$TAP_TOKEN" ]]; then
+            echo "::warning::TAP_TOKEN is not set. Update Casks/duodisplay.rb by hand: version $VERSION, sha256 $SHA256"
+            exit 0
+          fi
+          git clone --depth 1 "https://x-access-token:$TAP_TOKEN@github.com/LB26121/homebrew-duodisplay.git" "$RUNNER_TEMP/tap"
+          cd "$RUNNER_TEMP/tap"
+          sed -i '' -E "s/^  version \".*\"/  version \"$VERSION\"/; s/^  sha256 \".*\"/  sha256 \"$SHA256\"/" Casks/duodisplay.rb
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "Cask already at $VERSION"
+          else
+            git commit -am "duodisplay $VERSION"
+            git push
+          fi
+
+      - name: Clean up
+        if: always()
+        run: |
+          [[ -n "${KEYCHAIN:-}" ]] && security delete-keychain "$KEYCHAIN" || true
+          rm -f "$RUNNER_TEMP"/*.provisionprofile "$RUNNER_TEMP/notary.p8"

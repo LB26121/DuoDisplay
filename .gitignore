@@ -3,3 +3,14 @@
 build/
 *.xcuserstate
 xcuserdata/
+
+# Signing and notarization secrets never belong in the repo
+*.p12
+*.p8
+*.key
+*.cer
+*.pem
+*.certSigningRequest
+*.provisionprofile
+*.mobileprovision
+.env

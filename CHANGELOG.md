@@ -4,14 +4,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions: [Sem
 
 ## [Unreleased]
 
-### Added
+## [1.0] – 2026-11-26
 
-- MIT license, contribution guide, security policy, issue and pull request templates, CI.
-- English README, app interface and test output.
-
-## [1.0] – not yet released
-
-First version:
+First release:
 
 - one Mac as a second display of another over Thunderbolt, switched with ⌃⌥⌘D
 - move the pointer across the screen edge to control the other Mac
@@ -19,3 +14,5 @@ First version:
 - MacBook sound on the iMac speakers, iMac camera and microphone as devices on the MacBook
 - pairing with a code, encrypted control channel and media streams
 - menu bar app in the current macOS design (Liquid Glass)
+- universal app (Apple silicon and Intel), signed with a Developer ID and notarized; install with Homebrew: `brew install --cask lb26121/duodisplay/duodisplay`
+- open source under the MIT license, with contribution guide, security policy and CI
